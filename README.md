@@ -1,6 +1,6 @@
 # Avortyx Backend
 
-The Flask backend for the Avortyx website (`../trackdrive.net-clone`). For now it handles one job:
+The Flask backend for the Avortyx website ([avortyx-frontend](https://github.com/kvn-koech/avortyx-frontend), checked out next to this folder as `../Avortyx-Frontend`). For now it handles one job:
 **careers applications**. The careers page form posts each application here. It is saved, the CV
 goes to the hiring team on **Telegram and by email**, and the team reviews it in an admin **panel**.
 
@@ -46,7 +46,7 @@ flask --app wsgi run --debug --port 5055
 ## Connect the website
 
 The careers form posts to whatever `VITE_APPLY_URL` was set to when the site was built. In
-`../trackdrive.net-clone/.env.local` (local) or in Vercel's environment variables (live):
+`../Avortyx-Frontend/.env.local` (local) or in Vercel's environment variables (live):
 
 ```
 VITE_APPLY_URL=http://localhost:5055/careers/apply          # local
