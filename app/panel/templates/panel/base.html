@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{% block title %}Avortyx Panel{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('panel.static', filename='panel/panel.css') }}">
+</head>
+<body>
+  <header class="bar">
+    <a class="brand" href="{{ url_for('panel.applications') }}">Avortyx Panel</a>
+    {% if current_admin() %}
+    <form method="post" action="{{ url_for('panel.logout') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <span class="muted">{{ current_admin().email }}</span>
+      <button class="link">Sign out</button>
+    </form>
+    {% endif %}
+  </header>
+  <main>
+    {% for message in get_flashed_messages() %}<p class="flash">{{ message }}</p>{% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

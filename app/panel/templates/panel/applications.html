@@ -1,0 +1,36 @@
+{% extends "panel/base.html" %}
+{% block title %}Applications · Avortyx Panel{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Applications</h1>
+  <form class="filters" method="get">
+    <select name="role" onchange="this.form.submit()">
+      <option value="">All roles</option>
+      {% for r in roles %}<option {{ 'selected' if r == role }}>{{ r }}</option>{% endfor %}
+    </select>
+    <select name="status" onchange="this.form.submit()">
+      <option value="">Any status</option>
+      {% for s in STATUSES %}<option value="{{ s }}" {{ 'selected' if s == status }}>{{ s|capitalize }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+{% if not applications %}
+<p class="muted">No applications yet.</p>
+{% else %}
+<table>
+  <thead><tr><th>Received</th><th>Role</th><th>Name</th><th>Email</th><th>Status</th><th>Sent</th></tr></thead>
+  <tbody>
+  {% for a in applications %}
+    <tr>
+      <td class="muted">{{ a.created_at.strftime('%d %b %Y, %H:%M') }}</td>
+      <td>{{ a.role }}</td>
+      <td><a href="{{ url_for('panel.application', app_id=a.id) }}">{{ a.name }}</a></td>
+      <td>{{ a.email }}</td>
+      <td><span class="tag tag-{{ a.status }}">{{ a.status }}</span></td>
+      <td>{{ 'TG' if a.sent_telegram }} {{ 'Email' if a.sent_email }}{% if not (a.sent_telegram and a.sent_email) %} <span class="warn">!</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

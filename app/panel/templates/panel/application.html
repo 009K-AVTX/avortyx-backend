@@ -1,0 +1,36 @@
+{% extends "panel/base.html" %}
+{% block title %}{{ a.name }} · Avortyx Panel{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('panel.applications') }}">← All applications</a></p>
+<div class="card">
+  <div class="head">
+    <div>
+      <h1>{{ a.name }}</h1>
+      <p class="muted">{{ a.role }} · received {{ a.created_at.strftime('%d %b %Y, %H:%M') }} UTC</p>
+    </div>
+    <a class="btn" href="{{ url_for('panel.cv', app_id=a.id) }}">Download CV</a>
+  </div>
+  <dl>
+    <dt>Email</dt><dd><a href="mailto:{{ a.email }}">{{ a.email }}</a></dd>
+    {% if a.phone %}<dt>Phone</dt><dd>{{ a.phone }}</dd>{% endif %}
+    {% if a.telegram %}<dt>Telegram</dt><dd>{{ a.telegram }}</dd>{% endif %}
+    {% if a.link %}<dt>Link</dt><dd>{% if a.link.startswith(('http://', 'https://')) %}<a href="{{ a.link }}" rel="noopener noreferrer" target="_blank">{{ a.link }}</a>{% else %}{{ a.link }}{% endif %}</dd>{% endif %}
+  </dl>
+  {% if a.note %}<h2>Note</h2><p class="note">{{ a.note }}</p>{% endif %}
+</div>
+
+<div class="row">
+  <form class="card" method="post" action="{{ url_for('panel.status', app_id=a.id) }}">
+    <h2>Status</h2>
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <select name="status">{% for s in STATUSES %}<option value="{{ s }}" {{ 'selected' if s == a.status }}>{{ s|capitalize }}</option>{% endfor %}</select>
+    <button class="btn">Save</button>
+  </form>
+  <form class="card" method="post" action="{{ url_for('panel.resend', app_id=a.id) }}">
+    <h2>Notifications</h2>
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <p>Telegram: {{ 'sent' if a.sent_telegram else 'not sent' }} · Email: {{ 'sent' if a.sent_email else 'not sent' }}</p>
+    {% if not (a.sent_telegram and a.sent_email) %}<button class="btn">Send again</button>{% endif %}
+  </form>
+</div>
+{% endblock %}
