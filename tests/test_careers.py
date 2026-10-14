@@ -19,7 +19,7 @@ def post(client, **over):
 
 def test_application_is_saved_and_sent(app, client, sent):
     res = post(client)
-    assert res.status_code == 200 and res.get_json() == {"ok": True}
+    assert res.status_code == 200 and res.get_json() == {"ok": True, "reference": "AVX-00001"}
     assert sorted(c[0] for c in sent) == ["email", "telegram"]
     with app.app_context():
         a = JobApplication.query.one()

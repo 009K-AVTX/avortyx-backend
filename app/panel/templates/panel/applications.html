@@ -18,10 +18,11 @@
 <p class="muted">No applications yet.</p>
 {% else %}
 <table>
-  <thead><tr><th>Received</th><th>Role</th><th>Name</th><th>Email</th><th>Status</th><th>Sent</th></tr></thead>
+  <thead><tr><th>Ref</th><th>Received</th><th>Role</th><th>Name</th><th>Email</th><th>Status</th><th>Sent</th></tr></thead>
   <tbody>
   {% for a in applications %}
     <tr>
+      <td class="muted nowrap">{{ a.reference }}</td>
       <td class="muted">{{ a.created_at.strftime('%d %b %Y, %H:%M') }}</td>
       <td>{{ a.role }}</td>
       <td><a href="{{ url_for('panel.application', app_id=a.id) }}">{{ a.name }}</a></td>

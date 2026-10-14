@@ -1,10 +1,11 @@
 """POST /careers/apply — multipart form from the website's careers page.
 
 Fields: role, name*, email*, cv* (PDF/DOC/DOCX), phone, telegram, link, note, and company_site
-(hidden from people; bots fill it in). Replies 200 {"ok": true}, or 4xx {"error": "..."} with a
-message the form shows the applicant as it is.
+(hidden from people; bots fill it in). Replies 200 {"ok": true, "reference": "AVX-00012"}, or 4xx
+{"error": "..."} with a message the form shows the applicant as it is.
 
-Steps: validate -> save the CV -> save a JobApplication -> send to Telegram and email. Once the
+Steps: validate -> save the CV -> save a JobApplication -> alert the team on Telegram and by email,
+and email the applicant a confirmation. Once the
 application is saved it is never lost: if both notifications fail it still waits in the panel,
 which can send them again.
 """
@@ -36,7 +37,8 @@ def apply():
 
     notify(application, data)
     db.session.commit()
-    return {"ok": True}
+    # the reference the applicant sees on the site and in their confirmation email
+    return {"ok": True, "reference": application.reference}
 
 
 @bp.errorhandler(RequestEntityTooLarge)

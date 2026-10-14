@@ -6,7 +6,7 @@
   <div class="head">
     <div>
       <h1>{{ a.name }}</h1>
-      <p class="muted">{{ a.role }} · received {{ a.created_at.strftime('%d %b %Y, %H:%M') }} UTC</p>
+      <p class="muted">{{ a.reference }} · {{ a.role }} · received {{ a.created_at.strftime('%d %b %Y, %H:%M') }} UTC</p>
     </div>
     <a class="btn" href="{{ url_for('panel.cv', app_id=a.id) }}">Download CV</a>
   </div>
@@ -29,8 +29,30 @@
   <form class="card" method="post" action="{{ url_for('panel.resend', app_id=a.id) }}">
     <h2>Notifications</h2>
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <p>Telegram: {{ 'sent' if a.sent_telegram else 'not sent' }} · Email: {{ 'sent' if a.sent_email else 'not sent' }}</p>
-    {% if not (a.sent_telegram and a.sent_email) %}<button class="btn">Send again</button>{% endif %}
+    <p>Telegram: {{ 'sent' if a.sent_telegram else 'not sent' }} · Email: {{ 'sent' if a.sent_email else 'not sent' }}{% if config.SEND_APPLICANT_CONFIRMATION %} · Applicant confirmation: {{ 'sent' if a.sent_confirmation else 'not sent' }}{% endif %}</p>
+    {% set unsent = not (a.sent_telegram and a.sent_email and (a.sent_confirmation or not config.SEND_APPLICANT_CONFIRMATION)) %}
+    {% if unsent %}<button class="btn">Send again</button>{% endif %}
   </form>
 </div>
+
+<section class="card" id="reply">
+  <h2>Reply to {{ a.name }}</h2>
+  <p class="muted small">Goes to {{ a.email }} by email, from the careers address. The team can also reply from Telegram: reply to the alert, or send <code>{{ a.reference }} your message</code> to the bot.</p>
+  {% if a.replies %}
+  <ol class="thread">
+    {% for r in a.replies %}
+    <li>
+      <p class="muted small">{{ r.created_at.strftime('%d %b %Y, %H:%M') }} UTC · {{ r.sent_by }} · via {{ r.via }} ·
+        {% if r.emailed %}<span class="ok">emailed</span>{% else %}<span class="warn">not emailed{% if r.error %}: {{ r.error }}{% endif %}</span>{% endif %}</p>
+      <p class="note">{{ r.body }}</p>
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+  <form method="post" action="{{ url_for('panel.reply', app_id=a.id) }}" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <textarea name="message" rows="5" maxlength="4000" required placeholder="Hi {{ a.name.split()[0] if a.name.split() else a.name }}, thanks for applying…"></textarea>
+    <div class="actions"><button class="btn">Send email</button></div>
+  </form>
+</section>
 {% endblock %}

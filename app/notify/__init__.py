@@ -1,21 +1,36 @@
-"""Tells the hiring team about a new application. Each channel is tried on its own: one failing
-never stops the other, and the result is recorded on the JobApplication."""
+"""Tells the hiring team about a new application, and the applicant that it arrived. Each channel is
+tried on its own: one failing never stops the others, and the result is recorded on the
+JobApplication so the panel can show it and send again.
+
+  telegram      the alert to linked panel users and the team group  (sent_telegram)
+  email         the alert to CAREERS_EMAIL_TO and opted-in users    (sent_email)
+  confirmation  "we received your application" to the applicant    (sent_confirmation)
+"""
 from concurrent.futures import ThreadPoolExecutor
 
 from flask import current_app
 
 from . import email, telegram
 
-CHANNELS = {"telegram": telegram.send, "email": email.send}
+
+CHANNELS = {"telegram": telegram.send, "email": email.send, "confirmation": email.send_confirmation}
+
+
+def channels():
+    """CHANNELS, without the applicant's confirmation when SEND_APPLICANT_CONFIRMATION is off."""
+    out = dict(CHANNELS)
+    if not current_app.config["SEND_APPLICANT_CONFIRMATION"]:
+        out.pop("confirmation", None)
+    return out
 
 
 def notify(app, cv_bytes):
-    """Sends to every channel not yet marked sent, at the same time. Sets sent_telegram /
-    sent_email on the application (the caller commits) and returns {channel: error or None}."""
-    todo = {name: fn for name, fn in CHANNELS.items() if not getattr(app, f"sent_{name}")}
+    """Sends on every channel not yet marked sent, at the same time. Sets sent_<channel> on the
+    application (the caller commits) and returns {channel: error or None}."""
+    todo = {name: fn for name, fn in channels().items() if not getattr(app, f"sent_{name}")}
     flask_app = current_app._get_current_object()
 
-    # the senders read current_app.config, so each thread gets the app context
+    # the senders read current_app.config and the database, so each thread gets the app context
     def run(fn):
         def job():
             with flask_app.app_context():

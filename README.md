@@ -2,7 +2,13 @@
 
 The Flask backend for the Avortyx website ([avortyx-frontend](https://github.com/kvn-koech/avortyx-frontend), checked out next to this folder as `../Avortyx-Frontend`). For now it handles one job:
 **careers applications**. The careers page form posts each application here. It is saved, the CV
-goes to the hiring team on **Telegram and by email**, and the team reviews it in an admin **panel**.
+goes to the hiring team on **Telegram and by email**, the applicant gets a confirmation email, and
+the team reviews it in an admin **panel**.
+
+Telegram and email work the same way as on the Avortyx call platform: a real **bot** (each team
+member links their own Telegram from Panel → Settings with one tap, `/start`, `/help`, `/stop`)
+and branded HTML **emails**. The team can **reply to an applicant** from the panel or straight from
+Telegram, and the applicant receives it by email.
 
 ```
 Avortyx-Backend/
@@ -13,16 +19,19 @@ Avortyx-Backend/
 │   ├── __init__.py          create_app(): config, CORS, database, blueprints, /health
 │   ├── config.py            settings from the environment
 │   ├── extensions.py        db (SQLAlchemy), cors
-│   ├── cli.py               flask create-admin, flask telegram-chat-id
+│   ├── cli.py               create-admin, telegram-set-webhook / -webhook-info, send-test-email, …
+│   ├── schema.py            adds new columns to an existing database at start-up
+│   ├── replies.py           emailing an applicant (shared by the panel and the bot)
 │   ├── careers/             PUBLIC: POST /careers/apply (the website's form)
 │   │   ├── routes.py
 │   │   └── validators.py    required fields, real PDF/DOC/DOCX by its bytes, size limit
 │   ├── notify/              Telegram + email, sent together; one failing never stops the other
-│   │   ├── telegram.py
-│   │   └── email.py
+│   │   ├── telegram.py      Bot API calls; the alert to linked people and the team group
+│   │   └── email.py         branded HTML emails: team alert, applicant confirmation, replies
+│   ├── bot/                 TELEGRAM: POST /telegram/webhook (/start linking, /help, /stop, replies)
 │   ├── storage/files.py     CVs on disk under UPLOAD_DIR with random names (swap for S3 here)
-│   ├── models/              JobApplication, AdminUser
-│   └── panel/               ADMIN: /panel (sign in, list, open, download CV, status, re-send)
+│   ├── models/              JobApplication, AdminUser, TelegramLinkCode, ApplicationReply
+│   └── panel/               ADMIN: /panel (applications, reply, Settings: Telegram + alerts)
 ├── tests/                   pytest
 ├── instance/                the SQLite database (dev)
 └── uploads/                 the CVs (dev)
@@ -74,29 +83,63 @@ it still waits in the panel, where **Send again** retries.
 
 ## Telegram and email
 
-- **Telegram:** create a bot with @BotFather and put its token in `TELEGRAM_BOT_TOKEN`. Add the bot
-  to the team's group (or press Start on it from @avortyxsupport) and send a message there. Then run
-  `flask --app wsgi telegram-chat-id` and put the id in `TELEGRAM_CHAT_ID`. A group's id starts
-  with -100.
-- **Email:** any SMTP mailbox. For Gmail or Google Workspace that's `smtp.gmail.com`, port 465, and
-  an app password. Port 587 uses STARTTLS. Applications go to `CAREERS_EMAIL_TO`, and replying goes
-  to the applicant.
+### The bot
+
+1. Create a bot with **@BotFather** (`/newbot`), put its token in `TELEGRAM_BOT_TOKEN`.
+2. Set `PUBLIC_URL` (this backend's https address) and a random `TELEGRAM_WEBHOOK_SECRET`.
+3. Connect the bot to this server: **Panel → Settings → Connect the bot to this server**, or
+   `flask --app wsgi telegram-set-webhook`. Telegram then sends every message for the bot to
+   `POST /telegram/webhook`, which checks the secret.
+4. Each team member: **Panel → Settings → Connect Telegram**, tap **Open Telegram**, press
+   **Start**. The page notices by itself. That's the call platform's linking flow.
+
+What the bot does:
+
+| | |
+|-|-|
+| `/start <code>` | links the chat to the panel user who made the code (one-time, 15 minutes) |
+| `/start`, `/help` | welcome / everything it does |
+| `/stop` | unlinks the chat: no more alerts there |
+| new application | details + CV to every linked person with Telegram alerts on, and the team group (`TELEGRAM_CHAT_ID`, optional) |
+| reply to an alert, or `AVX-00012 message` | emails that message to the applicant; the bot confirms in the chat |
+| `/reply AVX-00012 message` | the same, for groups (bots in groups only see commands and replies to them) |
+
+Only linked panel users and the team group can reply to applicants; anyone else is told to link first.
+Every reply is kept on the application in the panel with who sent it and whether the email went.
+
+### Email
+
+Any SMTP mailbox. For a Hostinger mailbox: `smtp.hostinger.com`, port 465, the full address as
+`SMTP_USER` and its password. Port 587 uses STARTTLS. Four emails, all branded HTML with a
+plain-text copy:
+
+- **team alert** to `CAREERS_EMAIL_TO` (plus anyone who ticked email alerts in Settings), CV attached,
+  Reply-To the applicant
+- **confirmation** to the applicant with their reference (`SEND_APPLICANT_CONFIRMATION=0` turns it off)
+- **replies** to the applicant from the panel or Telegram, Reply-To `CAREERS_REPLY_TO`
+- **test** from Panel → Settings, or `flask --app wsgi send-test-email you@x.com`
+
+Panel → Settings → **Setup status** shows what is configured and the last error Telegram reported.
 
 ## Deploying to the Hostinger VPS
 
 `api.avortyx.com` runs on a Hostinger KVM VPS (Ubuntu): nginx → gunicorn on `127.0.0.1:8000`,
-run by systemd as the `avortyx` user. The files are in `deploy/`.
+run by systemd as the `avortyx` user. The files are in `deploy/`. The full step-by-step guide is
+the Word document that comes with this version; in short:
 
 1. In DNS, point an **A record** for `api.avortyx.com` at the VPS's IP.
-2. From this folder: `deploy/deploy.sh root@<server-ip>`. The first run installs nginx/Python,
-   opens the firewall, writes a production `/srv/avortyx-backend/.env` (with a fresh `SECRET_KEY`)
-   and starts the app. Every later run just ships the code and restarts.
-3. HTTPS, once DNS resolves: `ssh root@<server-ip> certbot --nginx -d api.avortyx.com`.
-4. A panel login: `ssh -t root@<server-ip> /srv/avortyx-backend/deploy/flask.sh create-admin you@avortyx.com`.
-5. Telegram/SMTP: edit `/srv/avortyx-backend/.env` on the server, then `systemctl restart avortyx-backend`.
+2. Put the code on the server in `/srv/avortyx-backend` (`git clone`, or `deploy/deploy.sh
+   root@<server-ip>` from a Mac/Linux machine) and run `bash /srv/avortyx-backend/deploy/install-on-server.sh`
+   on the server. The first run installs nginx/Python, opens the firewall, writes a production
+   `.env` (fresh `SECRET_KEY` and `TELEGRAM_WEBHOOK_SECRET`) and starts the app.
+3. HTTPS, once DNS resolves: `certbot --nginx -d api.avortyx.com`.
+4. Fill in Telegram and SMTP in `/srv/avortyx-backend/.env`, then `systemctl restart avortyx-backend`.
+5. A panel login: `/srv/avortyx-backend/deploy/flask.sh create-admin you@avortyx.com`.
+6. `/srv/avortyx-backend/deploy/flask.sh telegram-set-webhook` (or the button in Settings).
 
-The database and CVs are in `/var/lib/avortyx` and a deploy never touches them. Logs:
-`journalctl -u avortyx-backend -f`.
+Updating later: new code into `/srv/avortyx-backend`, then `install-on-server.sh` again. The
+database and CVs are in `/var/lib/avortyx` and an update never touches them; new columns are added
+at start-up. Logs: `journalctl -u avortyx-backend -f`.
 
 ## Deploying elsewhere
 

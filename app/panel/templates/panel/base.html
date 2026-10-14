@@ -11,6 +11,10 @@
   <header class="bar">
     <a class="brand" href="{{ url_for('panel.applications') }}">Avortyx Panel</a>
     {% if current_admin() %}
+    <nav class="nav">
+      <a href="{{ url_for('panel.applications') }}" {{ 'aria-current=page' if request.endpoint in ('panel.applications', 'panel.application') }}>Applications</a>
+      <a href="{{ url_for('panel.settings') }}" {{ 'aria-current=page' if request.endpoint == 'panel.settings' }}>Settings</a>
+    </nav>
     <form method="post" action="{{ url_for('panel.logout') }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
       <span class="muted">{{ current_admin().email }}</span>

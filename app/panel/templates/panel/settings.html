@@ -1,0 +1,116 @@
+{% extends "panel/base.html" %}
+{% block title %}Settings · Avortyx Panel{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Settings</h1>
+    <p class="muted">How you hear about new applications. Each team member sets their own.</p>
+  </div>
+</div>
+
+<section class="card" id="telegram">
+  <div class="head">
+    <div>
+      <h2>Telegram</h2>
+      <p class="muted">Every new application with the CV, straight to your Telegram. Reply there and the applicant gets it by email.</p>
+    </div>
+    {% if admin.telegram_linked %}<span class="tag tag-ok">Connected</span>{% endif %}
+  </div>
+
+  {% if admin.telegram_linked %}
+    <p>Connected as <b>{{ admin.telegram_label }}</b>.</p>
+    <div class="actions">
+      <form method="post" action="{{ url_for('panel.telegram_test') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="btn">Send a test message</button>
+      </form>
+      <form method="post" action="{{ url_for('panel.telegram_disconnect') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-ghost">Disconnect</button>
+      </form>
+    </div>
+  {% elif link %}
+    <p>Open the bot in Telegram and press <b>Start</b>. That links your account, nothing to type.</p>
+    <div class="actions">
+      <a class="btn" href="{{ link_url }}" target="_blank" rel="noopener">Open Telegram</a>
+      <span class="muted" data-tg-wait>Waiting for you to press Start in Telegram…</span>
+    </div>
+    <p class="muted small">If the link doesn't open, send the bot <code>/start {{ link.code }}</code>. The link works for {{ config.TELEGRAM_LINK_TTL_MINUTES }} minutes.</p>
+    <script>
+      (function () {
+        var wait = document.querySelector('[data-tg-wait]'), tries = 0;
+        function again() { if (++tries < 300) setTimeout(tick, 3000); else wait.textContent = "We didn't see you press Start. Press Connect Telegram to try again."; }
+        function tick() {
+          fetch('{{ url_for("panel.telegram_status") }}', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (d && d.linked) location.reload(); else again(); })
+            .catch(again);
+        }
+        setTimeout(tick, 3000);
+      })();
+    </script>
+  {% elif not setup.bot %}
+    <p class="muted">The Telegram bot isn't set up on this server yet. Add <code>TELEGRAM_BOT_TOKEN</code> to the server's <code>.env</code> (see the setup guide), then come back here.</p>
+  {% else %}
+    <form method="post" action="{{ url_for('panel.telegram_connect') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <button class="btn">Connect Telegram</button>
+    </form>
+  {% endif %}
+</section>
+
+<section class="card" id="alerts">
+  <h2>Alerts</h2>
+  <form method="post" action="{{ url_for('panel.alerts') }}" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label class="check">
+      <input type="checkbox" name="telegram_alerts" {{ 'checked' if admin.telegram_alerts }}>
+      <span>Telegram: send me each new application{% if not admin.telegram_linked %} <em class="muted">(once Telegram is connected)</em>{% endif %}</span>
+    </label>
+    <label class="check">
+      <input type="checkbox" name="email_alerts" {{ 'checked' if admin.email_alerts }}>
+      <span>Email: also send each new application to {{ admin.email }}</span>
+    </label>
+    <p class="muted small">{{ setup.team_inbox or 'CAREERS_EMAIL_TO' }} always receives every application by email, whatever is ticked here.</p>
+    <div class="actions"><button class="btn">Save</button></div>
+  </form>
+  <form method="post" action="{{ url_for('panel.email_test') }}" class="mt">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button class="btn btn-ghost">Send me a test email</button>
+  </form>
+</section>
+
+<section class="card" id="setup">
+  <h2>Setup status</h2>
+  <p class="muted small">What this server has configured. Missing items are set in <code>/srv/avortyx-backend/.env</code> on the server.</p>
+  {% set expected = setup.public_url ~ '/telegram/webhook' %}
+  <dl>
+    <dt>Bot</dt>
+    <dd>{% if setup.bot %}<span class="ok">@{{ setup.bot }}</span>{% elif setup.token %}<span class="warn">token set, but Telegram didn't accept it</span>{% else %}<span class="warn">TELEGRAM_BOT_TOKEN not set</span>{% endif %}</dd>
+    <dt>Bot connected</dt>
+    <dd>
+      {% if setup.webhook and setup.webhook == expected %}<span class="ok">yes</span> · {{ setup.webhook }}
+      {% elif setup.webhook %}<span class="warn">points elsewhere:</span> {{ setup.webhook }}
+      {% elif setup.token %}<span class="warn">no, press the button below</span>
+      {% else %}<span class="muted">needs the bot token</span>{% endif %}
+      {% if setup.webhook_error %}<br><span class="warn">Last error from Telegram: {{ setup.webhook_error }}</span>{% endif %}
+    </dd>
+    <dt>Public address</dt>
+    <dd>{% if setup.public_url %}{{ setup.public_url }}{% else %}<span class="warn">PUBLIC_URL not set</span>{% endif %}</dd>
+    <dt>Webhook secret</dt>
+    <dd>{% if setup.secret %}<span class="ok">set</span>{% else %}<span class="warn">TELEGRAM_WEBHOOK_SECRET not set</span>{% endif %}</dd>
+    <dt>Team group</dt>
+    <dd>{{ setup.group or 'none (optional)' }}</dd>
+    <dt>Email</dt>
+    <dd>{% if setup.smtp %}<span class="ok">sending as {{ setup.smtp_from }}</span>{% else %}<span class="warn">SMTP not set</span>{% endif %}</dd>
+    <dt>Applicant confirmation</dt>
+    <dd>{{ 'on' if setup.confirmation else 'off' }}</dd>
+  </dl>
+  {% if setup.token %}
+  <form method="post" action="{{ url_for('panel.telegram_webhook') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button class="btn btn-ghost">{{ 'Reconnect' if setup.webhook else 'Connect' }} the bot to this server</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

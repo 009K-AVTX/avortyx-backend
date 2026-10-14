@@ -6,6 +6,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _list(name, default=""):
+    return [v.strip() for v in os.getenv(name, default).split(",") if v.strip()]
+
+
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev")
     # panel sign-in cookie: https-only unless SESSION_COOKIE_SECURE=0 (plain-http local runs)
@@ -14,17 +18,37 @@ class Config:
     PERMANENT_SESSION_LIFETIME = 60 * 60 * 12
     BEHIND_PROXY = os.getenv("BEHIND_PROXY", "0") == "1"
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///avortyx.db")
-    CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+    CORS_ORIGINS = _list("CORS_ORIGINS")
 
+    # This backend's own public address, e.g. https://api.avortyx.com. Used for the Telegram
+    # webhook and for "Open in panel" links in alerts and emails.
+    PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
+    # The website, linked from the emails applicants receive.
+    SITE_URL = os.getenv("SITE_URL", "https://avortyx.com").rstrip("/")
+
+    # ── Telegram bot ────────────────────────────────────────────────────────
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    # the bot's @username, for the "Connect Telegram" link; read from Telegram if left empty
+    TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "").lstrip("@")
+    # optional: a team group that gets every application as well as the linked people
     TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+    # Telegram sends this back on every webhook call, so nobody else can post to the webhook
+    TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+    TELEGRAM_LINK_TTL_MINUTES = int(os.getenv("TELEGRAM_LINK_TTL_MINUTES", "15"))
 
+    # ── Email ───────────────────────────────────────────────────────────────
     SMTP_HOST = os.getenv("SMTP_HOST", "")
     SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
     SMTP_USER = os.getenv("SMTP_USER", "")
     SMTP_PASS = os.getenv("SMTP_PASS", "")
     SMTP_FROM = os.getenv("SMTP_FROM", "")
+    MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Avortyx Careers")
+    # who receives every application by email (comma-separated)
     CAREERS_EMAIL_TO = os.getenv("CAREERS_EMAIL_TO", "hello@avortyx.io")
+    # where an applicant's "reply" goes; defaults to the first CAREERS_EMAIL_TO address
+    CAREERS_REPLY_TO = os.getenv("CAREERS_REPLY_TO", "")
+    # email the applicant a "we received your application" note
+    SEND_APPLICANT_CONFIRMATION = os.getenv("SEND_APPLICANT_CONFIRMATION", "1") != "0"
 
     UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
     MAX_CV_BYTES = int(os.getenv("MAX_CV_BYTES", str(4 * 1024 * 1024)))
@@ -39,4 +63,10 @@ class TestConfig(Config):
     UPLOAD_DIR = ""  # set per test to a temporary folder
     CORS_ORIGINS = ["https://avortyx-prototype.vercel.app"]
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
-    TELEGRAM_BOT_TOKEN = TELEGRAM_CHAT_ID = SMTP_HOST = ""
+    PUBLIC_URL = "https://api.example.test"
+    SITE_URL = "https://avortyx.com"
+    TELEGRAM_BOT_TOKEN = TELEGRAM_CHAT_ID = TELEGRAM_BOT_USERNAME = TELEGRAM_WEBHOOK_SECRET = ""
+    SMTP_HOST = SMTP_USER = SMTP_PASS = SMTP_FROM = ""
+    CAREERS_EMAIL_TO = "hello@avortyx.io"
+    CAREERS_REPLY_TO = ""
+    SEND_APPLICANT_CONFIRMATION = True

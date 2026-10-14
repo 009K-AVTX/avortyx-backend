@@ -7,6 +7,9 @@
   GET  /panel/applications/<id>/cv      download the CV
   POST /panel/applications/<id>/status  move it along: new -> reviewing -> interview -> hired/rejected
   POST /panel/applications/<id>/notify  send the Telegram / email notifications that failed, again
+  POST /panel/applications/<id>/reply   email the applicant a message (also possible from Telegram)
+
+Settings (Telegram, alerts, email) are in settings.py.
 """
 from flask import abort, flash, redirect, render_template, request, send_file, url_for
 
@@ -14,6 +17,7 @@ from ..extensions import db
 from ..models import AdminUser, JobApplication
 from ..models.application import STATUSES
 from ..notify import notify
+from ..replies import reply_to_applicant
 from ..storage import cv_path, read_cv
 from . import bp
 from .auth import check_csrf, csrf_token, current_admin, log_in, log_out, login_required
@@ -102,3 +106,17 @@ def resend(app_id):
     failed = {k: v for k, v in results.items() if v}
     flash("Sent." if not failed else "Still failing: " + "; ".join(f"{k} ({v})" for k, v in failed.items()))
     return redirect(url_for("panel.application", app_id=a.id))
+
+
+@bp.post("/applications/<int:app_id>/reply")
+@login_required
+def reply(app_id):
+    check_csrf()
+    a = get_application(app_id)
+    try:
+        r = reply_to_applicant(a, request.form.get("message", ""), sent_by=current_admin().email, via="panel")
+    except ValueError as err:
+        flash(str(err))
+        return redirect(url_for("panel.application", app_id=a.id))
+    flash(f"Emailed to {a.email}." if r.emailed else f"Saved, but the email failed: {r.error}")
+    return redirect(url_for("panel.application", app_id=a.id) + "#reply")

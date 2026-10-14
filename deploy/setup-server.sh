@@ -29,3 +29,4 @@ systemctl daemon-reload
 systemctl enable avortyx-backend
 
 echo "Server ready. HTTPS: certbot --nginx -d $DOMAIN (once DNS points here)."
+echo "Then: deploy/flask.sh create-admin you@avortyx.com, and deploy/flask.sh telegram-set-webhook."

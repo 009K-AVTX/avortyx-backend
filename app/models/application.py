@@ -1,9 +1,14 @@
 """A job application from the careers page, and where it is in review."""
+import re
 from datetime import datetime
 
 from ..extensions import db
 
 STATUSES = ("new", "reviewing", "interview", "rejected", "hired")
+
+# "AVX-00012": what the team sees in Telegram and email, and types to reply to an applicant
+REF_PREFIX = "AVX-"
+REF_PATTERN = re.compile(r"\bAVX-?0*(\d{1,9})\b", re.IGNORECASE)
 
 
 class JobApplication(db.Model):
@@ -25,3 +30,19 @@ class JobApplication(db.Model):
     # whether each notification went out, so the panel can show and retry failures
     sent_telegram = db.Column(db.Boolean, default=False, nullable=False)
     sent_email = db.Column(db.Boolean, default=False, nullable=False)
+    # the "we received your application" email to the applicant
+    sent_confirmation = db.Column(db.Boolean, default=False, nullable=False)
+
+    replies = db.relationship(
+        "ApplicationReply", order_by="ApplicationReply.created_at", cascade="all, delete-orphan", lazy="select"
+    )
+
+    @property
+    def reference(self):
+        return f"{REF_PREFIX}{self.id:05d}" if self.id else ""
+
+
+def find_reference(text):
+    """The application id in a piece of text ("AVX-00012", "avx12"), or None."""
+    m = REF_PATTERN.search(text or "")
+    return int(m.group(1)) if m else None
