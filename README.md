@@ -82,7 +82,23 @@ it still waits in the panel, where **Send again** retries.
   an app password. Port 587 uses STARTTLS. Applications go to `CAREERS_EMAIL_TO`, and replying goes
   to the applicant.
 
-## Deploying
+## Deploying to the Hostinger VPS
+
+`api.avortyx.com` runs on a Hostinger KVM VPS (Ubuntu): nginx → gunicorn on `127.0.0.1:8000`,
+run by systemd as the `avortyx` user. The files are in `deploy/`.
+
+1. In DNS, point an **A record** for `api.avortyx.com` at the VPS's IP.
+2. From this folder: `deploy/deploy.sh root@<server-ip>`. The first run installs nginx/Python,
+   opens the firewall, writes a production `/srv/avortyx-backend/.env` (with a fresh `SECRET_KEY`)
+   and starts the app. Every later run just ships the code and restarts.
+3. HTTPS, once DNS resolves: `ssh root@<server-ip> certbot --nginx -d api.avortyx.com`.
+4. A panel login: `ssh -t root@<server-ip> /srv/avortyx-backend/deploy/flask.sh create-admin you@avortyx.com`.
+5. Telegram/SMTP: edit `/srv/avortyx-backend/.env` on the server, then `systemctl restart avortyx-backend`.
+
+The database and CVs are in `/var/lib/avortyx` and a deploy never touches them. Logs:
+`journalctl -u avortyx-backend -f`.
+
+## Deploying elsewhere
 
 ```bash
 gunicorn wsgi:app --workers 2 --bind 0.0.0.0:$PORT
