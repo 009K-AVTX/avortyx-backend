@@ -11,7 +11,9 @@
 
 A teammate answers by replying to a forwarded message in the support group (or by sending
 "CHAT-00012 the answer" there); app/bot hands those to `answer_from_telegram` below. A message that
-could not be forwarded is still saved and goes along with the visitor's next one.
+could not be forwarded (the bot not in the group yet, Telegram down) is still saved, and is tried
+again with the visitor's next message, about once a minute while their chat box is open, and by
+`flask chat-resend`.
 """
 import hashlib
 import logging
@@ -109,6 +111,7 @@ def list_messages(cid):
     if conv is None:
         return {"error": "This chat has ended. Please start a new one."}, 404
     after = request.args.get("after", type=int) or 0
+    retry_unsent(conv)
     rows = ChatMessage.query.filter(ChatMessage.conversation_id == conv.id, ChatMessage.id > after) \
         .order_by(ChatMessage.id).limit(100).all()
     return {"messages": [m.public() for m in rows]}
@@ -139,27 +142,41 @@ def forward_text(conv, msg, first):
     return "\n".join(lines + how)
 
 
+def pending(conv):
+    return ChatMessage.query.filter_by(conversation_id=conv.id, sender="visitor", tg_message_id=None) \
+        .order_by(ChatMessage.id).all()
+
+
+def retry_unsent(conv):
+    """While the visitor's chat box is open: messages that didn't go are tried again each minute."""
+    tried = conv.forward_tried_at
+    if (tried is None or datetime.utcnow() - tried > timedelta(seconds=60)) and pending(conv):
+        forward(conv)
+
+
 def forward(conv):
     """Sends the conversation's unsent visitor messages to the support group. Never raises: a
-    message that didn't go is saved and tried again with the next one."""
+    message that didn't go stays saved for the next try. Returns whether all of them went."""
     group, topic = destination(current_app.config["TELEGRAM_SUPPORT_CHAT_ID"])
     if not group or not current_app.config["TELEGRAM_BOT_TOKEN"]:
         log.warning("chat: %s not forwarded, TELEGRAM_SUPPORT_CHAT_ID or the bot token is not set", conv.reference)
-        return
+        return False
+    conv.forward_tried_at = datetime.utcnow()
     any_sent = ChatMessage.query.filter(ChatMessage.conversation_id == conv.id,
                                         ChatMessage.tg_message_id.isnot(None)).count() > 0
-    pending = ChatMessage.query.filter_by(conversation_id=conv.id, sender="visitor", tg_message_id=None) \
-        .order_by(ChatMessage.id).all()
-    for msg in pending:
+    unsent = pending(conv)
+    for msg in unsent:
         try:
             sent = send_text(group, forward_text(conv, msg, first=not any_sent), topic=topic) or {}
         except TelegramError as err:
             log.warning("chat: forwarding %s to the support group failed: %s", conv.reference, err)
-            break
+            db.session.commit()
+            return False
         msg.tg_chat_id = str((sent.get("chat") or {}).get("id") or group)
         msg.tg_message_id = sent.get("message_id")
         any_sent = True
     db.session.commit()
+    return True
 
 
 def is_team_chat(chat):

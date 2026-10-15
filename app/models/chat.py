@@ -24,6 +24,8 @@ class ChatConversation(db.Model):
     intent = db.Column(db.String(20))  # sales, support or direct
     page = db.Column(db.String(300))   # the page the chat started on
     ip = db.Column(db.String(64))      # for the per-address limit on new conversations
+    # the last try to forward unsent messages, so polling retries them about once a minute
+    forward_tried_at = db.Column(db.DateTime)
 
     messages = db.relationship("ChatMessage", backref="conversation", order_by="ChatMessage.id",
                                cascade="all, delete-orphan")

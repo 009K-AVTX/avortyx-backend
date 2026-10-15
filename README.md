@@ -152,6 +152,12 @@ Setting up the group: add the bot and **make it an admin** (it then sees every m
 `/reply CHAT-00012 …`). Make the group **private** so only the team can read visitors' messages,
 then copy the topics' links again (they change to `t.me/c/…`). `/chatid` in a topic answers with the
 group's id and the topic.
+
+Deploying before the bot is in the group is safe: the website's forms and chat keep working and
+everything is saved. Until then the group gets nothing (the log says `bot is not a member`):
+applications and access requests still reach linked panel users and email, and **Send again** in the
+panel resends them; chat messages are retried while the visitor's chat box is open, and
+`deploy/flask.sh chat-resend` sends any that are left once the bot is in.
 Every reply is kept on the application in the panel with who sent it and whether the email went.
 
 ### Email

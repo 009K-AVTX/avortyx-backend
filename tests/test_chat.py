@@ -179,3 +179,37 @@ def test_chatid_in_a_topic(client, tg):
     body["message"].update(message_thread_id=284, is_topic_message=True)
     hook(client, body)
     assert tg.sent("sendMessage", "-100555")[0]["text"] == "This chat's id: <code>-100555/284</code> (this topic)"
+
+
+def test_bot_not_in_group_yet_nothing_breaks_and_messages_catch_up(client, tg, app):
+    from datetime import datetime, timedelta
+
+    # deployed before the bot was added to the group: Telegram refuses, the visitor's chat still works
+    app.config.update(TELEGRAM_SUPPORT_CHAT_ID=SUPPORT)
+    tg.fail_chats.add(SUPPORT)
+    data = start(client, text="anyone there?").get_json()
+    assert data["ok"]
+    url = f"/chat/{data['conversation']}/messages?token={data['token']}"
+    assert client.get(url).status_code == 200
+
+    # the bot is added; the visitor's open chat box retries once the minute is up
+    tg.fail_chats.clear()
+    client.get(url)
+    assert not [m for m in tg.sent("sendMessage", SUPPORT) if "anyone there?" in m["text"]][1:]  # not yet
+    conv = db.session.get(ChatConversation, data["conversation"])
+    conv.forward_tried_at = datetime.utcnow() - timedelta(minutes=2)
+    db.session.commit()
+    client.get(url)
+    assert ChatMessage.query.filter(ChatMessage.tg_message_id.is_(None)).count() == 0
+
+
+def test_chat_resend_command(client, tg, app):
+    app.config.update(TELEGRAM_SUPPORT_CHAT_ID=SUPPORT)
+    tg.fail_chats.add(SUPPORT)
+    start(client, text="one")
+    start(client, text="two")
+    runner = app.test_cli_runner()
+    assert "Resent 0 of 2 chat(s). The rest still failed" in runner.invoke(args=["chat-resend"]).output
+    tg.fail_chats.clear()
+    assert "Resent 2 of 2 chat(s)." in runner.invoke(args=["chat-resend"]).output
+    assert "Nothing to resend" in runner.invoke(args=["chat-resend"]).output
