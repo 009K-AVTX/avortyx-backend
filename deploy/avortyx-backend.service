@@ -7,7 +7,7 @@ User=avortyx
 Group=avortyx
 WorkingDirectory=/srv/avortyx-backend
 EnvironmentFile=/srv/avortyx-backend/.env
-ExecStart=/srv/avortyx-backend/venv/bin/gunicorn wsgi:app --workers 2 --bind 127.0.0.1:8000 --access-logfile - --error-logfile -
+ExecStart=/srv/avortyx-backend/venv/bin/gunicorn wsgi:app --workers 2 --bind 127.0.0.1:8055 --access-logfile - --error-logfile -
 Restart=always
 RestartSec=3
 # only the data folder is writable

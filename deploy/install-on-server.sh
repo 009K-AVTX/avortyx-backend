@@ -38,8 +38,21 @@ $APP/venv/bin/pip install -q -r $APP/requirements.txt
 $APP/deploy/flask.sh routes >/dev/null
 systemctl restart avortyx-backend
 sleep 2
-curl -fsS http://127.0.0.1:8000/health && echo "  <- backend is up"
+curl -fsS http://127.0.0.1:8055/health && echo "  <- backend is up"
+
+# https for api.avortyx.com (Let's Encrypt), once DNS points here. certbot only edits our own
+# nginx site and reuses the server's existing certbot account; it renews by itself.
+DOMAIN=api.avortyx.com
+if [ ! -d /etc/letsencrypt/live/$DOMAIN ]; then
+  if [ "$(getent ahostsv4 $DOMAIN | awk 'NR==1{print $1}')" = "$(curl -4 -fsS https://api.ipify.org || true)" ]; then
+    certbot --nginx -d $DOMAIN --non-interactive --agree-tos --redirect \
+      $( [ -d /etc/letsencrypt/accounts ] || echo --register-unsafely-without-email ) \
+      || echo "certbot failed: the backend still answers on http://$DOMAIN; see the message above"
+  else
+    echo "Skipping https: $DOMAIN does not point at this server yet. Re-run this script once it does."
+  fi
+fi
 # keep Telegram pointed at this server (needs the bot token in .env and https working)
-if grep -q '^TELEGRAM_BOT_TOKEN=.\+' $APP/.env && [ -d /etc/letsencrypt/live ]; then
+if grep -q '^TELEGRAM_BOT_TOKEN=.\+' $APP/.env && [ -d /etc/letsencrypt/live/api.avortyx.com ]; then
   $APP/deploy/flask.sh telegram-set-webhook || echo "Telegram webhook not set: see the message above"
 fi

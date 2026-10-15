@@ -123,19 +123,25 @@ Panel → Settings → **Setup status** shows what is configured and the last er
 
 ## Deploying to the Hostinger VPS
 
-`api.avortyx.com` runs on a Hostinger KVM VPS (Ubuntu): nginx → gunicorn on `127.0.0.1:8000`,
-run by systemd as the `avortyx` user. The files are in `deploy/`. The full step-by-step guide is
-the Word document that comes with this version; in short:
+`api.avortyx.com` runs on the Hostinger KVM VPS `168.231.112.65` (Ubuntu): nginx → gunicorn on
+`127.0.0.1:8055`, run by systemd as the `avortyx` user. The files are in `deploy/`.
+
+**The VPS is shared with api.arbityx.com.** The scripts only add to it: their own nginx site, user,
+folders, port and service. They never remove other nginx sites, never turn the firewall on or
+change its rules, never upgrade packages that are already installed, and if nginx rejects the new
+site they take it back out before reloading.
 
 1. In DNS, point an **A record** for `api.avortyx.com` at the VPS's IP.
 2. Put the code on the server in `/srv/avortyx-backend` (`git clone`, or `deploy/deploy.sh
    root@<server-ip>` from a Mac/Linux machine) and run `bash /srv/avortyx-backend/deploy/install-on-server.sh`
-   on the server. The first run installs nginx/Python, opens the firewall, writes a production
-   `.env` (fresh `SECRET_KEY` and `TELEGRAM_WEBHOOK_SECRET`) and starts the app.
-3. HTTPS, once DNS resolves: `certbot --nginx -d api.avortyx.com`.
-4. Fill in Telegram and SMTP in `/srv/avortyx-backend/.env`, then `systemctl restart avortyx-backend`.
-5. A panel login: `/srv/avortyx-backend/deploy/flask.sh create-admin you@avortyx.com`.
-6. `/srv/avortyx-backend/deploy/flask.sh telegram-set-webhook` (or the button in Settings).
+   on the server. The first run installs what is missing, adds the nginx site, writes a production
+   `.env` (fresh `SECRET_KEY` and `TELEGRAM_WEBHOOK_SECRET`), starts the app and, once DNS points
+   at the server, gets the Let's Encrypt certificate (`certbot --nginx -d api.avortyx.com`).
+   On a network that blocks outgoing port 22, give the server a second SSH port (2222) and use
+   `SSH_PORT=2222 deploy/deploy.sh root@<server-ip>`.
+3. Fill in Telegram and SMTP in `/srv/avortyx-backend/.env`, then `systemctl restart avortyx-backend`.
+4. A panel login: `/srv/avortyx-backend/deploy/flask.sh create-admin you@avortyx.com`.
+5. `/srv/avortyx-backend/deploy/flask.sh telegram-set-webhook` (or the button in Settings).
 
 Updating later: new code into `/srv/avortyx-backend`, then `install-on-server.sh` again. The
 database and CVs are in `/var/lib/avortyx` and an update never touches them; new columns are added
