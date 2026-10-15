@@ -4,17 +4,17 @@ Fields: role, name*, email*, cv* (PDF/DOC/DOCX), phone, telegram, link, note, an
 (hidden from people; bots fill it in). Replies 200 {"ok": true, "reference": "AVX-00012"}, or 4xx
 {"error": "..."} with a message the form shows the applicant as it is.
 
-Steps: validate -> save the CV -> save a JobApplication -> alert the team on Telegram and by email,
-and email the applicant a confirmation. Once the
-application is saved it is never lost: if both notifications fail it still waits in the panel,
-which can send them again.
+Steps: validate -> save the CV -> save a JobApplication -> answer the form -> alert the team on
+Telegram and by email, and email the applicant a confirmation, on a background thread (so the
+applicant never waits on Telegram or the mail server). Once the application is saved it is never
+lost: if the notifications fail it still waits in the panel, which can send them again.
 """
 from flask import current_app, request
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from ..extensions import db
 from ..models import JobApplication
-from ..notify import notify
+from ..notify import notify, notify_in_background
 from ..storage import save_cv
 from . import bp
 from .validators import check, clean_fields, download_name
@@ -35,8 +35,11 @@ def apply():
     db.session.add(application)
     db.session.commit()
 
-    notify(application, data)
-    db.session.commit()
+    if current_app.config["NOTIFY_IN_BACKGROUND"]:
+        notify_in_background(application.id, data)
+    else:
+        notify(application, data)
+        db.session.commit()
     # the reference the applicant sees on the site and in their confirmation email
     return {"ok": True, "reference": application.reference}
 

@@ -40,6 +40,32 @@ def test_apply_alerts_everyone_and_confirms(client, tg, mail, admin, app):
     assert "AVX-00001" in html and "AVORTYX" in html
 
 
+def test_apply_answers_first_and_sends_in_background(client, tg, mail, admin, app, monkeypatch):
+    import threading
+
+    started = []
+
+    class Recorded(threading.Thread):
+        def start(self):
+            started.append(self)
+            super().start()
+    monkeypatch.setattr("app.notify.threading.Thread", Recorded)
+    admin.telegram_chat_id = "555"
+    db.session.commit()
+    app.config["NOTIFY_IN_BACKGROUND"] = True
+
+    res = client.post("/careers/apply", data=apply_form(), content_type="multipart/form-data")
+    assert res.get_json() == {"ok": True, "reference": "AVX-00001"}
+
+    jobs = [t for t in started if t.name.startswith("notify-")]  # not the senders' own threads
+    assert len(jobs) == 1
+    jobs[0].join(timeout=10)
+    db.session.expire_all()
+    a = JobApplication.query.one()
+    assert a.sent_telegram and a.sent_email and a.sent_confirmation
+    assert tg.sent("sendDocument", "555") and len(mail.sent) == 2
+
+
 def test_one_blocked_chat_does_not_fail_telegram(client, tg, mail, admin, app):
     admin.telegram_chat_id = "555"
     db.session.commit()

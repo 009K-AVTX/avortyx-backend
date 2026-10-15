@@ -49,6 +49,8 @@ class Config:
     CAREERS_REPLY_TO = os.getenv("CAREERS_REPLY_TO", "")
     # email the applicant a "we received your application" note
     SEND_APPLICANT_CONFIRMATION = os.getenv("SEND_APPLICANT_CONFIRMATION", "1") != "0"
+    # answer the form first and send Telegram / email just after (0 = wait for them, as tests do)
+    NOTIFY_IN_BACKGROUND = os.getenv("NOTIFY_IN_BACKGROUND", "1") != "0"
 
     UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
     MAX_CV_BYTES = int(os.getenv("MAX_CV_BYTES", str(4 * 1024 * 1024)))
@@ -70,3 +72,4 @@ class TestConfig(Config):
     CAREERS_EMAIL_TO = "hello@avortyx.io"
     CAREERS_REPLY_TO = ""
     SEND_APPLICANT_CONFIRMATION = True
+    NOTIFY_IN_BACKGROUND = False  # the tests check what was sent right after each request
