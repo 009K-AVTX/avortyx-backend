@@ -2,6 +2,7 @@
 
 - careers:  the public endpoint the website's application form posts to
 - access:   the public endpoint the website's request-access form posts to
+- chat:     the website's help chat, forwarded to the team's support group on Telegram
 - panel:    the admin panel where the team reviews applications and access requests, and sets up
             Telegram / email
 - telegram: the bot's webhook (/start linking, /help, replying to applicants from Telegram)
@@ -25,17 +26,19 @@ def create_app(config=Config):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     db.init_app(app)
-    # only the public careers and access endpoints are open to the website; the panel is
+    # only the public careers, access and chat endpoints are open to the website; the panel is
     # same-origin and the webhook is called by Telegram's servers, not a browser
     public = {"origins": app.config["CORS_ORIGINS"]}
-    cors.init_app(app, resources={r"/careers/*": public, r"/access/*": public})
+    cors.init_app(app, resources={r"/careers/*": public, r"/access/*": public, r"/chat/*": public})
 
     from .access import bp as access_bp
     from .bot import bp as bot_bp
     from .careers import bp as careers_bp
+    from .chat import bp as chat_bp
     from .panel import bp as panel_bp
     app.register_blueprint(careers_bp, url_prefix="/careers")
     app.register_blueprint(access_bp, url_prefix="/access")
+    app.register_blueprint(chat_bp, url_prefix="/chat")
     app.register_blueprint(panel_bp, url_prefix="/panel")
     app.register_blueprint(bot_bp, url_prefix="/telegram")
 

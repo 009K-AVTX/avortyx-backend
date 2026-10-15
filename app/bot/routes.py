@@ -4,9 +4,12 @@
   /start          the welcome message
   /help           what the bot does
   /stop           unlink this chat: no more alerts here
+  /chatid         this chat's id (for the team and support group settings)
   /reply AVX-00012 message
   a reply to an application alert, or "AVX-00012 message"
                   email that message to the applicant (linked users and the team group only)
+  a reply to a website chat message, or "CHAT-00012 message", in the support group
+                  show that answer in the visitor's chat box on the website
 
 The webhook always answers 200 once the secret matches: anything else makes Telegram send the same
 update again and again. A wrong or missing secret gets 403, so nobody else can drive the bot.
@@ -19,6 +22,7 @@ from html import escape
 
 from flask import current_app, request
 
+from ..chat.routes import answer_from_telegram
 from ..extensions import db
 from ..models import AdminUser, JobApplication, TelegramLinkCode
 from ..models.application import REF_PATTERN, find_reference
@@ -88,6 +92,12 @@ def handle(update):
             return start(message, chat_id, private, rest)
         if command == "stop":
             return stop(chat_id)
+        if command == "chatid":  # for setting TELEGRAM_CHAT_ID / TELEGRAM_SUPPORT_CHAT_ID
+            topic = message.get("message_thread_id") if message.get("is_topic_message") else None
+            where = f"<code>{escape(chat_id)}/{topic}</code> (this topic)" if topic else f"<code>{escape(chat_id)}</code>"
+            return say(chat_id, f"This chat's id: {where}", reply_to=message.get("message_id"))
+        if command == "reply" and answer_from_telegram(message, chat, text):
+            return
         if command == "reply":
             m = REF_PATTERN.match(rest) or re.match(r"^0*(\d{1,9})\b", rest)
             body = rest[m.end():].strip(" :,-\n") if m else ""
@@ -96,6 +106,10 @@ def handle(update):
             return answer(message, chat_id, private, int(m.group(1)), body)
         if private:
             say(chat_id, UNKNOWN_TEXT)
+        return
+
+    # in the support group: an answer to a website chat goes to the visitor's chat box
+    if answer_from_telegram(message, chat, text):
         return
 
     # a reply (swipe / "Reply") to one of the bot's application messages

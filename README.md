@@ -28,9 +28,10 @@ Avortyx-Backend/
 │   ├── notify/              Telegram + email, sent together; one failing never stops the other
 │   │   ├── telegram.py      Bot API calls; the alert to linked people and the team group
 │   │   └── email.py         branded HTML emails: team alert, applicant confirmation, replies
+│   ├── chat/                PUBLIC: the website's help chat <-> the team support group on Telegram
 │   ├── bot/                 TELEGRAM: POST /telegram/webhook (/start linking, /help, /stop, replies)
 │   ├── storage/files.py     CVs on disk under UPLOAD_DIR with random names (swap for S3 here)
-│   ├── models/              JobApplication, AdminUser, TelegramLinkCode, ApplicationReply
+│   ├── models/              JobApplication, AccessRequest, ChatConversation/ChatMessage, AdminUser, …
 │   └── panel/               ADMIN: /panel (applications, reply, Settings: Telegram + alerts)
 ├── tests/                   pytest
 ├── instance/                the SQLite database (dev)
@@ -126,6 +127,30 @@ What the bot does:
 | `/reply AVX-00012 message` | the same, for groups (bots in groups only see commands and replies to them) |
 
 Only linked panel users and the team group can reply to applicants; anyone else is told to link first.
+
+### The website's chat box → the support group (t.me/Avortyx_Sup)
+
+The careers bot's alerts above are unchanged. Separately, the same bot carries the website's help
+chat to the support group: `TELEGRAM_SUPPORT_CHAT_ID=https://t.me/Avortyx_Sup/284` (the Customer
+support topic; a link as Telegram copies it, a group without a topic, a `-100…` id or `@username`).
+
+The website's chat box (`site.js` on avortyx.com, built with `VITE_CHAT_URL=https://api.avortyx.com/chat`):
+once a visitor picks a teammate, what they type goes to `POST /chat/messages` and on to the
+support group as `💬 New Support Chat · CHAT-00012` (a visitor name like `Visitor UGWYMY`, the
+teammate they picked, the page, the message). Later messages follow as `💬 Visitor UGWYMY · CHAT-00012`.
+To answer, send `CHAT-00012 your reply here`, or **reply** to one of those messages; the bot puts a
+👍 on it and the answer appears in the visitor's chat box within a few seconds (it asks `GET /chat/<id>/messages` while open). Only the
+visitor's browser has the conversation's token, so nobody else can read it.
+
+Setting up the group: add the bot and **make it an admin** (it then sees every message, so
+`CHAT-00012 your reply` works; without admin rights it only sees replies to its own messages and
+`/reply CHAT-00012 …`). Make the group **private** so only the team can read visitors' messages,
+then copy the topic's link again (it changes to `t.me/c/…`). `/chatid` in a topic answers with the
+group's id and the topic.
+
+Deploying before the bot is in the group is safe: the chat keeps working and every message is
+saved (the log says `bot is not a member`). Messages are retried while the visitor's chat box is
+open, and `deploy/flask.sh chat-resend` sends any that are left once the bot is in.
 Every reply is kept on the application in the panel with who sent it and whether the email went.
 
 ### Email

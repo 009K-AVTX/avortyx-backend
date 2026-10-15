@@ -101,6 +101,8 @@
     <dd>{% if setup.secret %}<span class="ok">set</span>{% else %}<span class="warn">TELEGRAM_WEBHOOK_SECRET not set</span>{% endif %}</dd>
     <dt>Team group</dt>
     <dd>{{ setup.group or 'none (optional)' }}</dd>
+    <dt>Support group (website chat)</dt>
+    <dd>{% if setup.support %}{{ setup.support }}{% else %}<span class="warn">TELEGRAM_SUPPORT_CHAT_ID not set</span>{% endif %}</dd>
     <dt>Email</dt>
     <dd>{% if setup.smtp %}<span class="ok">sending as {{ setup.smtp_from }}</span>{% else %}<span class="warn">SMTP not set</span>{% endif %}</dd>
     <dt>Applicant confirmation</dt>

@@ -25,6 +25,8 @@ if [ ! -f $APP/.env ]; then
 fi
 # a server set up by the first version: add the settings it doesn't have yet, keep everything else
 grep -q '^PUBLIC_URL=' $APP/.env || echo 'PUBLIC_URL=https://api.avortyx.com' >> $APP/.env
+# the website's help chat goes to the support group t.me/Avortyx_Sup, Customer support topic
+grep -q '^TELEGRAM_SUPPORT_CHAT_ID=' $APP/.env || echo 'TELEGRAM_SUPPORT_CHAT_ID=https://t.me/Avortyx_Sup/284' >> $APP/.env
 grep -q '^TELEGRAM_WEBHOOK_SECRET=' $APP/.env || \
   echo "TELEGRAM_WEBHOOK_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')" >> $APP/.env
 chown root:avortyx $APP/.env

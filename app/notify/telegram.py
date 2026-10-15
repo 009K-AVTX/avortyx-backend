@@ -5,6 +5,7 @@ on, plus the team group in TELEGRAM_CHAT_ID if one is set. Each chat gets the de
 message, then the CV as a document. Replying to either one - or sending "AVX-00012 your message" -
 emails the applicant (see app/bot).
 """
+import re
 from html import escape
 
 import requests
@@ -64,9 +65,38 @@ def panel_url(path=""):
     return f"{base}/panel{path}" if base else ""
 
 
-def send_text(chat_id, html, buttons=None, reply_to=None):
-    """Sends one HTML message. `buttons` is a list of (label, url) shown under it."""
+# the support group setting: "-100123", "@Group", either with "/284" for a topic, or the link
+# to a group or topic as Telegram copies it: https://t.me/Group(/284), https://t.me/c/123/284
+_LINK = re.compile(r"^(?:https?://)?t\.me/(c/)?(\w+)(?:/(\d+))?/?$", re.IGNORECASE)
+
+
+def destination(value):
+    """(chat_id, topic id or None) from a group setting."""
+    v = str(value or "").strip()
+    m = _LINK.match(v)
+    if m:
+        chat = f"-100{m.group(2)}" if m.group(1) else f"@{m.group(2)}"
+        return chat, int(m.group(3)) if m.group(3) else None
+    chat, _, topic = v.partition("/")
+    return chat, int(topic) if topic.isdigit() else None
+
+
+def is_chat(setting, chat):
+    """Whether a Telegram chat (from an update) is the group a setting names, by id or @username."""
+    target, _ = destination(setting)
+    if not target:
+        return False
+    if target.startswith("@"):
+        return (chat.get("username") or "").lower() == target[1:].lower()
+    return str(chat.get("id", "")) == target
+
+
+def send_text(chat_id, html, buttons=None, reply_to=None, topic=None):
+    """Sends one HTML message. `buttons` is a list of (label, url) shown under it; `topic` is the
+    topic (thread) in a group with topics."""
     params = {"chat_id": chat_id, "text": html[:4096], "parse_mode": "HTML", "disable_web_page_preview": True}
+    if topic:
+        params["message_thread_id"] = topic
     # Telegram refuses link buttons that don't point at a public https address
     buttons = [(label, url) for label, url in (buttons or []) if url and url.startswith("https://")]
     if buttons:
