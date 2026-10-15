@@ -28,7 +28,6 @@ def _setup_status():
         "token": bool(cfg["TELEGRAM_BOT_TOKEN"]),
         "bot": bot_username(),
         "group": cfg["TELEGRAM_CHAT_ID"],
-        "support": cfg["TELEGRAM_SUPPORT_CHAT_ID"],
         "public_url": cfg["PUBLIC_URL"],
         "secret": bool(cfg["TELEGRAM_WEBHOOK_SECRET"]),
         "webhook": None,

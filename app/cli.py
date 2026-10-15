@@ -6,7 +6,6 @@
   telegram-delete-webhook         stop the webhook (needed before telegram-chat-id works)
   telegram-chat-id                list the chats the bot has heard from (for TELEGRAM_CHAT_ID)
   send-test-email you@x.com       check the SMTP settings
-  chat-resend                     forward website chat messages that didn't reach the support group
 """
 import click
 
@@ -93,20 +92,6 @@ def register(app):
         for c in chats.values():
             name = c.get("title") or " ".join(filter(None, [c.get("first_name"), c.get("last_name")]))
             click.echo(f"{c['id']}\t{c['type']}\t{name}" + (f" @{c['username']}" if c.get("username") else ""))
-
-    @app.cli.command("chat-resend")
-    def chat_resend():
-        """Forward every website chat message that didn't reach the support group (for example,
-        sent before the bot was added to it)."""
-        from .chat.routes import forward
-        from .models import ChatConversation, ChatMessage
-
-        ids = {m.conversation_id for m in ChatMessage.query.filter_by(sender="visitor", tg_message_id=None)}
-        if not ids:
-            return click.echo("Nothing to resend: every chat message reached the support group.")
-        done = sum(1 for cid in sorted(ids) if forward(db.session.get(ChatConversation, cid)))
-        click.echo(f"Resent {done} of {len(ids)} chat(s)." + ("" if done == len(ids) else
-                   " The rest still failed: is the bot in the group, and TELEGRAM_SUPPORT_CHAT_ID right? See the log."))
 
     @app.cli.command("send-test-email")
     @click.argument("to")
