@@ -30,11 +30,21 @@ class Config:
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
     # the bot's @username, for the "Connect Telegram" link; read from Telegram if left empty
     TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "").lstrip("@")
-    # optional: a team group that gets every application as well as the linked people
-    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+    # the notification group: every application and access request, as well as the linked people
+    # (TELEGRAM_CHAT_ID is the older name for it)
+    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_NOTIFY_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID", "")
+    # the team support group: the website's help chat is forwarded here, and replies to it go back
+    # to the visitor's chat box (an id like -100..., or the group's @username if it is public)
+    TELEGRAM_SUPPORT_CHAT_ID = os.getenv("TELEGRAM_SUPPORT_CHAT_ID", "")
     # Telegram sends this back on every webhook call, so nobody else can post to the webhook
     TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
     TELEGRAM_LINK_TTL_MINUTES = int(os.getenv("TELEGRAM_LINK_TTL_MINUTES", "15"))
+
+    # ── Website chat ────────────────────────────────────────────────────────
+    CHAT_MAX_CHARS = int(os.getenv("CHAT_MAX_CHARS", "1000"))
+    # new conversations one address may start per hour, and messages per conversation per 10 minutes
+    CHAT_NEW_PER_HOUR = int(os.getenv("CHAT_NEW_PER_HOUR", "8"))
+    CHAT_MESSAGES_PER_10_MIN = int(os.getenv("CHAT_MESSAGES_PER_10_MIN", "20"))
 
     # ── Email ───────────────────────────────────────────────────────────────
     SMTP_HOST = os.getenv("SMTP_HOST", "")
@@ -68,6 +78,7 @@ class TestConfig(Config):
     PUBLIC_URL = "https://api.example.test"
     SITE_URL = "https://avortyx.com"
     TELEGRAM_BOT_TOKEN = TELEGRAM_CHAT_ID = TELEGRAM_BOT_USERNAME = TELEGRAM_WEBHOOK_SECRET = ""
+    TELEGRAM_SUPPORT_CHAT_ID = ""
     SMTP_HOST = SMTP_USER = SMTP_PASS = SMTP_FROM = ""
     CAREERS_EMAIL_TO = "hello@avortyx.io"
     CAREERS_REPLY_TO = ""

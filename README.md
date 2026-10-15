@@ -28,9 +28,10 @@ Avortyx-Backend/
 │   ├── notify/              Telegram + email, sent together; one failing never stops the other
 │   │   ├── telegram.py      Bot API calls; the alert to linked people and the team group
 │   │   └── email.py         branded HTML emails: team alert, applicant confirmation, replies
+│   ├── chat/                PUBLIC: the website's help chat <-> the team support group on Telegram
 │   ├── bot/                 TELEGRAM: POST /telegram/webhook (/start linking, /help, /stop, replies)
 │   ├── storage/files.py     CVs on disk under UPLOAD_DIR with random names (swap for S3 here)
-│   ├── models/              JobApplication, AdminUser, TelegramLinkCode, ApplicationReply
+│   ├── models/              JobApplication, AccessRequest, ChatConversation/ChatMessage, AdminUser, …
 │   └── panel/               ADMIN: /panel (applications, reply, Settings: Telegram + alerts)
 ├── tests/                   pytest
 ├── instance/                the SQLite database (dev)
@@ -121,11 +122,31 @@ What the bot does:
 | `/start <code>` | links the chat to the panel user who made the code (one-time, 15 minutes) |
 | `/start`, `/help` | welcome / everything it does |
 | `/stop` | unlinks the chat: no more alerts there |
-| new application | details + CV to every linked person with Telegram alerts on, and the team group (`TELEGRAM_CHAT_ID`, optional) |
+| new application | details + CV to every linked person with Telegram alerts on, and the notification group (`TELEGRAM_NOTIFY_CHAT_ID`, optional) |
 | reply to an alert, or `AVX-00012 message` | emails that message to the applicant; the bot confirms in the chat |
 | `/reply AVX-00012 message` | the same, for groups (bots in groups only see commands and replies to them) |
 
-Only linked panel users and the team group can reply to applicants; anyone else is told to link first.
+Only linked panel users and the notification group can reply to applicants; anyone else is told to link first.
+
+### Two groups: notifications and support
+
+| group | setting | what goes there |
+|-|-|-|
+| notification group | `TELEGRAM_NOTIFY_CHAT_ID` | every application (with the CV) and every access request |
+| team support group | `TELEGRAM_SUPPORT_CHAT_ID` | the website's help chat, nothing else |
+
+The website's chat box (`site.js` on avortyx.com, built with `VITE_CHAT_URL=https://api.avortyx.com/chat`):
+once a visitor picks a teammate, what they type goes to `POST /chat/messages` and on to the
+support group as `💬 WEBSITE CHAT · CHAT-00012` (the page, the teammate they picked, the message).
+Any later message follows as `💬 CHAT-00012 …`. To answer, **reply** to one of those messages in
+the group (or send `CHAT-00012 your answer`); the bot puts a 👍 on it and the answer appears in the
+visitor's chat box within a few seconds (it asks `GET /chat/<id>/messages` while open). Only the
+visitor's browser has the conversation's token, so nobody else can read it.
+
+Setting up the support group: add the bot to it (Group → Add members → the bot). Bots in groups
+see replies to their own messages, so no admin rights or privacy changes are needed. Make the group
+**private** so only the team can read visitors' messages, and use its `-100…` id: send `/chatid` in the group and the bot
+answers with it. A public group's `@username` also works. The notification group is set up the same way.
 Every reply is kept on the application in the panel with who sent it and whether the email went.
 
 ### Email
