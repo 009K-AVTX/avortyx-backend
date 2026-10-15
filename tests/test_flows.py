@@ -172,12 +172,12 @@ def test_reply_from_telegram_three_ways(client, tg, mail, admin, app):
     # 2. a reply to the alert message
     alert = tg.sent("sendMessage", "555")[0]["text"]
     hook(client, update("Great, see you then.", reply_to={"text": alert}))
-    # 3. /reply in the team group (works with the bot's group privacy on)
+    # 3. /reply in the notification group (works with the bot's group privacy on)
     hook(client, update("/reply AVX-00001 From the group", chat_id=-100777, chat_type="supergroup", username="mary"))
 
     replies = ApplicationReply.query.order_by(ApplicationReply.id).all()
     assert [r.body for r in replies] == ["Thanks Jane, can you talk Friday?", "Great, see you then.", "From the group"]
-    assert [r.sent_by for r in replies] == ["kevin@avortyx.com", "kevin@avortyx.com", "@mary (team group)"]
+    assert [r.sent_by for r in replies] == ["kevin@avortyx.com", "kevin@avortyx.com", "@mary (notification group)"]
     assert all(r.emailed and r.via == "telegram" for r in replies)
     assert [m["To"] for m in mail.sent] == ["jane@example.com"] * 3
     assert "AVX-00001" in mail.sent[0]["Subject"]

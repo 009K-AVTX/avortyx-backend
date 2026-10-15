@@ -2,7 +2,7 @@
 Each channel is tried on its own: one failing never stops the others, and the result is recorded
 on the record (sent_<channel>) so the panel can show it and send again.
 
-  telegram      the alert to linked panel users and the team group  (sent_telegram)
+  telegram      the alert to linked panel users and the notification group  (sent_telegram)
   email         the alert to CAREERS_EMAIL_TO and opted-in users    (sent_email)
   confirmation  "we received it" to the person who sent it         (sent_confirmation)
 

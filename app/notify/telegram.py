@@ -1,10 +1,11 @@
 """Telegram: the Bot API calls, and the alerts for a new application and a new access request.
 
 An alert goes to every panel user who linked Telegram (Panel → Settings) and kept Telegram alerts
-on, plus the team group in TELEGRAM_CHAT_ID if one is set. Each chat gets the details as one
+on, plus the notification group (or a topic in it) in TELEGRAM_NOTIFY_CHAT_ID if one is set. Each chat gets the details as one
 message, then the CV as a document. Replying to either one - or sending "AVX-00012 your message" -
 emails the applicant (see app/bot).
 """
+import re
 from html import escape
 
 import requests
@@ -64,9 +65,38 @@ def panel_url(path=""):
     return f"{base}/panel{path}" if base else ""
 
 
-def send_text(chat_id, html, buttons=None, reply_to=None):
-    """Sends one HTML message. `buttons` is a list of (label, url) shown under it."""
+# a group setting: "-100123", "@Group", either with "/284" for a topic, or the link to a topic as
+# Telegram copies it: https://t.me/Group/284 (public group), https://t.me/c/123/284 (private group)
+_LINK = re.compile(r"^(?:https?://)?t\.me/(c/)?(\w+)(?:/(\d+))?/?$", re.IGNORECASE)
+
+
+def destination(value):
+    """(chat_id, topic id or None) from a group setting."""
+    v = str(value or "").strip()
+    m = _LINK.match(v)
+    if m:
+        chat = f"-100{m.group(2)}" if m.group(1) else f"@{m.group(2)}"
+        return chat, int(m.group(3)) if m.group(3) else None
+    chat, _, topic = v.partition("/")
+    return chat, int(topic) if topic.isdigit() else None
+
+
+def is_chat(setting, chat):
+    """Whether a Telegram chat (from an update) is the group a setting names, by id or @username."""
+    target, _ = destination(setting)
+    if not target:
+        return False
+    if target.startswith("@"):
+        return (chat.get("username") or "").lower() == target[1:].lower()
+    return str(chat.get("id", "")) == target
+
+
+def send_text(chat_id, html, buttons=None, reply_to=None, topic=None):
+    """Sends one HTML message. `buttons` is a list of (label, url) shown under it; `topic` is the
+    topic (thread) in a group with topics."""
     params = {"chat_id": chat_id, "text": html[:4096], "parse_mode": "HTML", "disable_web_page_preview": True}
+    if topic:
+        params["message_thread_id"] = topic
     # Telegram refuses link buttons that don't point at a public https address
     buttons = [(label, url) for label, url in (buttons or []) if url and url.startswith("https://")]
     if buttons:
@@ -102,17 +132,18 @@ def details(app):
 
 
 def alert_chats():
-    """[(chat_id, who)] to alert: linked panel users with Telegram alerts on, plus the group."""
+    """[(chat_id, who, topic)] to alert: linked panel users with Telegram alerts on, plus the
+    notification group (in its topic, if it names one)."""
     from ..models import AdminUser
 
     chats = {}
-    group = current_app.config["TELEGRAM_CHAT_ID"]
+    group, topic = destination(current_app.config["TELEGRAM_CHAT_ID"])
     if group:
-        chats[str(group)] = "team group"
+        chats[group] = ("notification group", topic)
     linked = AdminUser.query.filter(AdminUser.telegram_chat_id.isnot(None), AdminUser.telegram_chat_id != "")
     for admin in linked.filter_by(telegram_alerts=True):
-        chats.setdefault(str(admin.telegram_chat_id), admin.email)
-    return list(chats.items())
+        chats.setdefault(str(admin.telegram_chat_id), (admin.email, None))
+    return [(chat_id, who, topic) for chat_id, (who, topic) in chats.items()]
 
 
 def send(app, cv_bytes):
@@ -120,17 +151,18 @@ def send(app, cv_bytes):
     chats = alert_chats()
     if not chats:
         raise TelegramError(
-            "no Telegram chat to send to: connect Telegram in Panel → Settings, or set TELEGRAM_CHAT_ID"
+            "no Telegram chat to send to: connect Telegram in Panel → Settings, or set TELEGRAM_NOTIFY_CHAT_ID"
         )
     text = details(app)
     caption = f"\U0001F4CE <b>CV</b> · {escape(app.name)} · {app.reference}"
     button = [("Open in panel", panel_url(f"/applications/{app.id}"))]
     failures = []
-    for chat_id, who in chats:
+    for chat_id, who, topic in chats:
         try:
-            send_text(chat_id, text, buttons=button)
+            send_text(chat_id, text, buttons=button, topic=topic)
+            extra = {"message_thread_id": topic} if topic else {}
             api("sendDocument", files={"document": (app.cv_name, cv_bytes)}, chat_id=chat_id,
-                parse_mode="HTML", caption=caption)
+                parse_mode="HTML", caption=caption, **extra)
         except TelegramError as err:
             current_app.logger.warning("telegram: alert for %s to %s failed: %s", app.reference, who, err)
             failures.append(f"{who}: {err}")
@@ -160,14 +192,14 @@ def send_access(req, _payload=None):
     chats = alert_chats()
     if not chats:
         raise TelegramError(
-            "no Telegram chat to send to: connect Telegram in Panel → Settings, or set TELEGRAM_CHAT_ID"
+            "no Telegram chat to send to: connect Telegram in Panel → Settings, or set TELEGRAM_NOTIFY_CHAT_ID"
         )
     text = access_details(req)
     button = [("Open in panel", panel_url(f"/access/{req.id}"))]
     failures = []
-    for chat_id, who in chats:
+    for chat_id, who, topic in chats:
         try:
-            send_text(chat_id, text, buttons=button)
+            send_text(chat_id, text, buttons=button, topic=topic)
         except TelegramError as err:
             current_app.logger.warning("telegram: alert for %s to %s failed: %s", req.reference, who, err)
             failures.append(f"{who}: {err}")

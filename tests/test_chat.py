@@ -26,14 +26,16 @@ def test_chat_goes_to_the_support_group_and_answers_come_back(client, tg, app):
 
     # forwarded to the support group only, never the notification group
     first = tg.sent("sendMessage", SUPPORT)[0]
-    assert "WEBSITE CHAT · CHAT-00001" in first["text"] and "Jordan Kim · Solutions engineer (support)" in first["text"]
-    assert "port my &lt;numbers&gt;?" in first["text"] and "/pricing" in first["text"]
+    assert "New Support Chat</b> · CHAT-00001" in first["text"] and "Asked for: Jordan Kim · Solutions engineer (support)" in first["text"]
+    assert "<b>Message:</b> Hi, how do I port my &lt;numbers&gt;?" in first["text"] and "Page: https://www.avortyx.com/pricing" in first["text"]
+    assert "\U0001F464 Visitor " in first["text"] and "<code>CHAT-00001 your reply here</code>" in first["text"]
     assert not tg.sent("sendMessage", "-100777")
 
     # a second message is short
     client.post("/chat/messages", json={"conversation": cid, "token": token, "text": "We do 2k calls a day"})
     second = tg.sent("sendMessage", SUPPORT)[1]
-    assert second["text"] == "\U0001F4AC <b>CHAT-00001</b>\nWe do 2k calls a day"
+    visitor = first["text"].split("\U0001F464 ")[1].split("\n")[0]
+    assert second["text"].startswith(f"\U0001F4AC <b>{visitor}</b> · CHAT-00001\n<b>Message:</b> We do 2k calls a day\n")
 
     # a teammate replies to the first forwarded message in the group
     fwd_id = ChatMessage.query.filter_by(sender="visitor").first().tg_message_id
@@ -73,10 +75,11 @@ def test_public_group_username_is_matched(client, tg, app):
     assert ChatMessage.query.filter_by(conversation_id=data["conversation"], sender="team").count() == 1
 
 
-def test_only_the_support_group_can_answer(client, tg, app, admin):
+def test_only_the_team_groups_can_answer(client, tg, app, admin):
+    # the support and notification groups may answer visitors; a private chat or another group can't
     app.config.update(TELEGRAM_SUPPORT_CHAT_ID=SUPPORT, TELEGRAM_CHAT_ID="-100777")
     data = start(client).get_json()
-    for chat_id, kind in ((-100777, "supergroup"), (555, "private"), (-100123, "group")):
+    for chat_id, kind in ((555, "private"), (-100123, "group")):
         hook(client, update("CHAT-00001 sneaky", chat_id=chat_id, chat_type=kind))
     assert ChatMessage.query.filter_by(conversation_id=data["conversation"], sender="team").count() == 0
 
@@ -99,7 +102,7 @@ def test_unsent_messages_go_with_the_next_one(client, tg, app):
     client.post("/chat/messages", json={"conversation": data["conversation"], "token": data["token"], "text": "second"})
     texts = [m["text"] for m in tg.sent("sendMessage", SUPPORT) if "first" in m["text"] or "second" in m["text"]]
     # the failed attempt, then both, the first one with the whole picture
-    assert "WEBSITE CHAT" in texts[-2] and "first" in texts[-2] and texts[-1].endswith("second")
+    assert "New Support Chat" in texts[-2] and "first" in texts[-2] and "Message:</b> second" in texts[-1]
     assert ChatMessage.query.filter(ChatMessage.tg_message_id.is_(None)).count() == 0
 
 
@@ -127,3 +130,52 @@ def test_without_support_group_messages_are_kept(client, tg, app):
 def test_chatid_command(client, tg):
     hook(client, update("/chatid", chat_id=-100555, chat_type="supergroup"))
     assert tg.sent("sendMessage", "-100555")[0]["text"] == "This chat's id: <code>-100555</code>"
+
+
+def test_group_settings_and_topic_links():
+    from app.notify.telegram import destination, is_chat
+
+    assert destination("https://t.me/Avortyx_Sup/284") == ("@Avortyx_Sup", 284)
+    assert destination("t.me/c/2049812345/285") == ("-1002049812345", 285)
+    assert destination("@Avortyx_Sup") == ("@Avortyx_Sup", None)
+    assert destination("-100777/12") == ("-100777", 12)
+    assert destination("-100777") == ("-100777", None)
+    assert destination("") == ("", None)
+    assert is_chat("https://t.me/Avortyx_Sup/284", {"id": -1001, "username": "avortyx_sup"})
+    assert is_chat("t.me/c/2049812345/285", {"id": -1002049812345})
+    assert not is_chat("https://t.me/Avortyx_Sup/284", {"id": -1001, "username": "other"})
+
+
+def test_support_and_notifications_in_two_topics_of_one_group(client, tg, app, admin):
+    from .conftest import apply_form
+    # the same group, two topics, as on t.me/Avortyx_Sup
+    app.config.update(TELEGRAM_SUPPORT_CHAT_ID="https://t.me/Avortyx_Sup/284",
+                      TELEGRAM_CHAT_ID="https://t.me/Avortyx_Sup/285")
+    data = start(client).get_json()
+    fwd = tg.sent("sendMessage", "@Avortyx_Sup")[0]
+    assert fwd["message_thread_id"] == 284 and "New Support Chat" in fwd["text"]
+
+    # an access request lands in the notifications topic
+    client.post("/access/request", data={"name": "Amina", "organization": "Lakeside", "email": "a@lakeside.example",
+                                         "use_case": "Medicare calls"})
+    alert = [m for m in tg.sent("sendMessage", "@Avortyx_Sup") if "ACCESS REQUEST" in m["text"]][0]
+    assert alert["message_thread_id"] == 285
+    # an application's CV goes to the same topic
+    client.post("/careers/apply", data=apply_form(), content_type="multipart/form-data")
+    assert tg.sent("sendDocument", "@Avortyx_Sup")[0]["message_thread_id"] == 285
+
+    # the team answers in the support topic: replies to the forwarded message, or /reply CHAT-…
+    body = update("/reply CHAT-00001 We can port them in 48h", chat_id=-1001, chat_type="supergroup")
+    body["message"].update(chat={"id": -1001, "type": "supergroup", "username": "Avortyx_Sup", "is_forum": True},
+                           message_thread_id=284, is_topic_message=True,
+                           reply_to_message={"message_id": 284, "text": ""})  # the topic itself
+    hook(client, body)
+    msgs = client.get(f"/chat/{data['conversation']}/messages?token={data['token']}").get_json()["messages"]
+    assert msgs[-1]["from"] == "team" and msgs[-1]["text"] == "We can port them in 48h"
+
+
+def test_chatid_in_a_topic(client, tg):
+    body = update("/chatid", chat_id=-100555, chat_type="supergroup")
+    body["message"].update(message_thread_id=284, is_topic_message=True)
+    hook(client, body)
+    assert tg.sent("sendMessage", "-100555")[0]["text"] == "This chat's id: <code>-100555/284</code> (this topic)"

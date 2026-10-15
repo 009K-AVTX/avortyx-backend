@@ -24,7 +24,7 @@ from flask import current_app, request
 
 from ..extensions import db
 from ..models import ChatConversation, ChatMessage
-from ..notify.telegram import RULE, TelegramError, api, send_text
+from ..notify.telegram import TelegramError, api, destination, is_chat, send_text
 from . import bp
 
 log = logging.getLogger(__name__)
@@ -116,26 +116,33 @@ def list_messages(cid):
 
 # ── to and from the support group ───────────────────────────────────────────
 
+def visitor_name(conv):
+    """A short, steady name for the visitor ("Visitor UGWYMY"), so the team can tell chats apart."""
+    digest = hashlib.sha256(conv.token.encode()).digest()
+    return "Visitor " + "".join(chr(65 + b % 26) for b in digest[:6])
+
+
 def forward_text(conv, msg, first):
-    """A visitor's message as Telegram HTML: the whole picture the first time, short after that."""
-    body = escape(msg.text)
+    """A visitor's message as Telegram HTML, in the style of the call platform's support bot: the
+    whole picture the first time, the message and how to answer after that."""
+    how = ["─────────────────", "📨 To reply, send:", f"<code>{conv.reference} your reply here</code>",
+           "or reply to this message."]
     if not first:
-        return f"\U0001F4AC <b>{conv.reference}</b>\n{body}"
-    rows = []
+        return "\n".join([f"💬 <b>{visitor_name(conv)}</b> · {conv.reference}",
+                          f"<b>Message:</b> {escape(msg.text)}"] + how)
+    lines = [f"💬 <b>New Support Chat</b> · {conv.reference}", f"👤 {visitor_name(conv)}"]
     if conv.agent:
-        rows.append(("Asked for", AGENTS[conv.agent] + (f" ({conv.intent})" if conv.intent else "")))
+        lines.append(f"🧑‍💼 Asked for: {escape(AGENTS[conv.agent])}" + (f" ({conv.intent})" if conv.intent else ""))
     if conv.page:
-        rows.append(("Page", conv.page))
-    lines = [f"\U0001F4AC <b>WEBSITE CHAT · {conv.reference}</b>", ""]
-    lines += [f"<b>{label}:</b> {escape(value)}" for label, value in rows]
-    lines += ["", RULE, body, RULE, "↩️ Reply to this message to answer in their chat box."]
-    return "\n".join(lines)
+        lines.append(f"🌐 Page: {escape(conv.page)}")
+    lines.append(f"<b>Message:</b> {escape(msg.text)}")
+    return "\n".join(lines + how)
 
 
 def forward(conv):
     """Sends the conversation's unsent visitor messages to the support group. Never raises: a
     message that didn't go is saved and tried again with the next one."""
-    group = current_app.config["TELEGRAM_SUPPORT_CHAT_ID"]
+    group, topic = destination(current_app.config["TELEGRAM_SUPPORT_CHAT_ID"])
     if not group or not current_app.config["TELEGRAM_BOT_TOKEN"]:
         log.warning("chat: %s not forwarded, TELEGRAM_SUPPORT_CHAT_ID or the bot token is not set", conv.reference)
         return
@@ -145,7 +152,7 @@ def forward(conv):
         .order_by(ChatMessage.id).all()
     for msg in pending:
         try:
-            sent = send_text(group, forward_text(conv, msg, first=not any_sent)) or {}
+            sent = send_text(group, forward_text(conv, msg, first=not any_sent), topic=topic) or {}
         except TelegramError as err:
             log.warning("chat: forwarding %s to the support group failed: %s", conv.reference, err)
             break
@@ -155,21 +162,22 @@ def forward(conv):
     db.session.commit()
 
 
-def is_support_chat(chat):
-    """Whether a Telegram chat is the support group (set as an id or as its public @username)."""
-    group = str(current_app.config["TELEGRAM_SUPPORT_CHAT_ID"] or "")
-    if not group:
-        return False
-    if group.startswith("@"):
-        return (chat.get("username") or "").lower() == group[1:].lower()
-    return str(chat.get("id", "")) == group
+def is_team_chat(chat):
+    """Whether a Telegram chat is the support group, or the notification group (often the same
+    group, another topic): the team may answer visitors from either."""
+    cfg = current_app.config
+    return is_chat(cfg["TELEGRAM_SUPPORT_CHAT_ID"], chat) or is_chat(cfg["TELEGRAM_CHAT_ID"], chat)
 
 
 def answer_from_telegram(message, chat, text):
-    """A message in the support group that answers a website chat goes to that visitor's chat box.
+    """A message in the support group that answers a website chat goes to that visitor's chat box:
+    a reply to a forwarded message, "CHAT-00012 answer", or "/reply CHAT-00012 answer".
     Returns True if it was one."""
-    if not text or not is_support_chat(chat):
+    if not text or not is_team_chat(chat):
         return False
+    command = re.match(r"^/reply(?:@\w+)?\s+(?=CHAT-?\d)", text, re.IGNORECASE)
+    if command:
+        text = text[command.end():]
     chat_id = str(chat.get("id"))
     conv = None
     replied = message.get("reply_to_message") or {}

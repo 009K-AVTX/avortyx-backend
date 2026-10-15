@@ -25,8 +25,10 @@ if [ ! -f $APP/.env ]; then
 fi
 # a server set up by the first version: add the settings it doesn't have yet, keep everything else
 grep -q '^PUBLIC_URL=' $APP/.env || echo 'PUBLIC_URL=https://api.avortyx.com' >> $APP/.env
-# the website's help chat goes to the team support group (change to its -100... id once it is private)
-grep -q '^TELEGRAM_SUPPORT_CHAT_ID=' $APP/.env || echo 'TELEGRAM_SUPPORT_CHAT_ID=@Avortyx_Sup' >> $APP/.env
+# the website's help chat goes to the Customer support topic, applications and access requests to
+# the Notifications topic, both in the team group t.me/Avortyx_Sup (edit .env to change either)
+grep -q '^TELEGRAM_SUPPORT_CHAT_ID=' $APP/.env || echo 'TELEGRAM_SUPPORT_CHAT_ID=https://t.me/Avortyx_Sup/284' >> $APP/.env
+grep -q '^TELEGRAM_NOTIFY_CHAT_ID=' $APP/.env || echo 'TELEGRAM_NOTIFY_CHAT_ID=https://t.me/Avortyx_Sup/285' >> $APP/.env
 grep -q '^TELEGRAM_WEBHOOK_SECRET=' $APP/.env || \
   echo "TELEGRAM_WEBHOOK_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')" >> $APP/.env
 chown root:avortyx $APP/.env

@@ -31,10 +31,11 @@ class Config:
     # the bot's @username, for the "Connect Telegram" link; read from Telegram if left empty
     TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "").lstrip("@")
     # the notification group: every application and access request, as well as the linked people
-    # (TELEGRAM_CHAT_ID is the older name for it)
+    # (TELEGRAM_CHAT_ID is the older name for it). An id (-100...), an @username, or a topic's link
+    # (https://t.me/Avortyx_Sup/285) to post in that topic.
     TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_NOTIFY_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID", "")
     # the team support group: the website's help chat is forwarded here, and replies to it go back
-    # to the visitor's chat box (an id like -100..., or the group's @username if it is public)
+    # to the visitor's chat box. Written like the notification group (https://t.me/Avortyx_Sup/284).
     TELEGRAM_SUPPORT_CHAT_ID = os.getenv("TELEGRAM_SUPPORT_CHAT_ID", "")
     # Telegram sends this back on every webhook call, so nobody else can post to the webhook
     TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")

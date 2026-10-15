@@ -128,25 +128,30 @@ What the bot does:
 
 Only linked panel users and the notification group can reply to applicants; anyone else is told to link first.
 
-### Two groups: notifications and support
+### Notifications and customer support (two topics in t.me/Avortyx_Sup)
 
-| group | setting | what goes there |
+| topic | setting | what goes there |
 |-|-|-|
-| notification group | `TELEGRAM_NOTIFY_CHAT_ID` | every application (with the CV) and every access request |
-| team support group | `TELEGRAM_SUPPORT_CHAT_ID` | the website's help chat, nothing else |
+| Notifications | `TELEGRAM_NOTIFY_CHAT_ID=https://t.me/Avortyx_Sup/285` | every application (with the CV) and every access request |
+| Customer support | `TELEGRAM_SUPPORT_CHAT_ID=https://t.me/Avortyx_Sup/284` | the website's help chat, nothing else |
+
+Each setting takes a topic's link as Telegram copies it (right-click the topic → Copy link; a
+private group's link looks like `https://t.me/c/123…/284`), a group's `-100…` id, or `@username`.
+They can also be two separate groups.
 
 The website's chat box (`site.js` on avortyx.com, built with `VITE_CHAT_URL=https://api.avortyx.com/chat`):
 once a visitor picks a teammate, what they type goes to `POST /chat/messages` and on to the
-support group as `💬 WEBSITE CHAT · CHAT-00012` (the page, the teammate they picked, the message).
-Any later message follows as `💬 CHAT-00012 …`. To answer, **reply** to one of those messages in
-the group (or send `CHAT-00012 your answer`); the bot puts a 👍 on it and the answer appears in the
-visitor's chat box within a few seconds (it asks `GET /chat/<id>/messages` while open). Only the
+support topic as `💬 New Support Chat · CHAT-00012` (a visitor name like `Visitor UGWYMY`, the
+teammate they picked, the page, the message). Later messages follow as `💬 Visitor UGWYMY · CHAT-00012`.
+To answer, send `CHAT-00012 your reply here`, or **reply** to one of those messages; the bot puts a
+👍 on it and the answer appears in the visitor's chat box within a few seconds (it asks `GET /chat/<id>/messages` while open). Only the
 visitor's browser has the conversation's token, so nobody else can read it.
 
-Setting up the support group: add the bot to it (Group → Add members → the bot). Bots in groups
-see replies to their own messages, so no admin rights or privacy changes are needed. Make the group
-**private** so only the team can read visitors' messages, and use its `-100…` id: send `/chatid` in the group and the bot
-answers with it. A public group's `@username` also works. The notification group is set up the same way.
+Setting up the group: add the bot and **make it an admin** (it then sees every message, so
+`CHAT-00012 your reply` works; without admin rights it only sees replies to its own messages and
+`/reply CHAT-00012 …`). Make the group **private** so only the team can read visitors' messages,
+then copy the topics' links again (they change to `t.me/c/…`). `/chatid` in a topic answers with the
+group's id and the topic.
 Every reply is kept on the application in the panel with who sent it and whether the email went.
 
 ### Email
