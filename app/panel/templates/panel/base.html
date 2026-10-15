@@ -13,6 +13,7 @@
     {% if current_admin() %}
     <nav class="nav">
       <a href="{{ url_for('panel.applications') }}" {{ 'aria-current=page' if request.endpoint in ('panel.applications', 'panel.application') }}>Applications</a>
+      <a href="{{ url_for('panel.access_requests') }}" {{ 'aria-current=page' if request.endpoint in ('panel.access_requests', 'panel.access_request') }}>Access requests</a>
       <a href="{{ url_for('panel.settings') }}" {{ 'aria-current=page' if request.endpoint == 'panel.settings' }}>Settings</a>
     </nav>
     <form method="post" action="{{ url_for('panel.logout') }}">

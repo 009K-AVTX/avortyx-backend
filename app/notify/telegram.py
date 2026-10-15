@@ -1,4 +1,4 @@
-"""Telegram: the Bot API calls, and the new-application alert.
+"""Telegram: the Bot API calls, and the alerts for a new application and a new access request.
 
 An alert goes to every panel user who linked Telegram (Panel → Settings) and kept Telegram alerts
 on, plus the team group in TELEGRAM_CHAT_ID if one is set. Each chat gets the details as one
@@ -133,6 +133,43 @@ def send(app, cv_bytes):
                 parse_mode="HTML", caption=caption)
         except TelegramError as err:
             current_app.logger.warning("telegram: alert for %s to %s failed: %s", app.reference, who, err)
+            failures.append(f"{who}: {err}")
+    if len(failures) == len(chats):
+        raise TelegramError("; ".join(failures))
+
+
+# ── the access-request alert ────────────────────────────────────────────────
+
+def access_details(req):
+    """An access request as Telegram HTML."""
+    rows = [("Name", req.name), ("Company", req.organization), ("Email", req.email)]
+    if req.phone:
+        rows.append(("Phone", req.phone))
+    if req.page:
+        rows.append(("Sent from", req.page))
+    use_case = req.use_case if len(req.use_case) <= 2000 else req.use_case[:2000] + "…"
+    lines = [f"\U0001F511 <b>ACCESS REQUEST · {req.reference}</b>", ""]
+    lines += [f"<b>{label}:</b> {escape(value)}" for label, value in rows]
+    lines += ["", RULE, "<b>WHAT THEY WANT TO ROUTE</b>", escape(use_case), "", RULE,
+              "\U0001F4AC Answer them by replying to the email alert."]
+    return "\n".join(lines)
+
+
+def send_access(req, _payload=None):
+    """The access channel "telegram": alert every chat. Succeeds if at least one chat got it."""
+    chats = alert_chats()
+    if not chats:
+        raise TelegramError(
+            "no Telegram chat to send to: connect Telegram in Panel → Settings, or set TELEGRAM_CHAT_ID"
+        )
+    text = access_details(req)
+    button = [("Open in panel", panel_url(f"/access/{req.id}"))]
+    failures = []
+    for chat_id, who in chats:
+        try:
+            send_text(chat_id, text, buttons=button)
+        except TelegramError as err:
+            current_app.logger.warning("telegram: alert for %s to %s failed: %s", req.reference, who, err)
             failures.append(f"{who}: {err}")
     if len(failures) == len(chats):
         raise TelegramError("; ".join(failures))

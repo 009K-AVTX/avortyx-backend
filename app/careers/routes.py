@@ -36,7 +36,7 @@ def apply():
     db.session.commit()
 
     if current_app.config["NOTIFY_IN_BACKGROUND"]:
-        notify_in_background(application.id, data)
+        notify_in_background(JobApplication, application.id, data)
     else:
         notify(application, data)
         db.session.commit()

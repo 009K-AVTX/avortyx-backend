@@ -1,0 +1,33 @@
+{% extends "panel/base.html" %}
+{% block title %}Access requests · Avortyx Panel{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Access requests</h1>
+  <form class="filters" method="get">
+    <select name="status" onchange="this.form.submit()">
+      <option value="">Any status</option>
+      {% for s in ACCESS_STATUSES %}<option value="{{ s }}" {{ 'selected' if s == status }}>{{ s|capitalize }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+{% if not requests %}
+<p class="muted">No access requests yet.</p>
+{% else %}
+<table>
+  <thead><tr><th>Ref</th><th>Received</th><th>Company</th><th>Name</th><th>Email</th><th>Status</th><th>Sent</th></tr></thead>
+  <tbody>
+  {% for r in requests %}
+    <tr>
+      <td class="muted nowrap">{{ r.reference }}</td>
+      <td class="muted">{{ r.created_at.strftime('%d %b %Y, %H:%M') }}</td>
+      <td>{{ r.organization }}</td>
+      <td><a href="{{ url_for('panel.access_request', req_id=r.id) }}">{{ r.name }}</a></td>
+      <td>{{ r.email }}</td>
+      <td><span class="tag tag-{{ r.status }}">{{ r.status }}</span></td>
+      <td>{{ 'TG' if r.sent_telegram }} {{ 'Email' if r.sent_email }}{% if not (r.sent_telegram and r.sent_email) %} <span class="warn">!</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

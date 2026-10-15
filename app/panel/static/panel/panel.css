@@ -26,8 +26,8 @@ th, td { padding: 10px 8px; border-bottom: 1px solid #232323; text-align: left; 
 th { color: #888888; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 .tag { padding: 2px 8px; border-radius: 999px; background: #232323; font-size: 12px; }
 .tag-new { background: rgba(55, 198, 28, .15); color: #B1F6A0; }
-.tag-interview, .tag-hired { background: #1E5F15; color: #EEFDE8; }
-.tag-rejected { color: #888888; }
+.tag-interview, .tag-hired, .tag-approved { background: #1E5F15; color: #EEFDE8; }
+.tag-rejected, .tag-declined { color: #888888; }
 .warn { color: #f59e0b; font-weight: 700; }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 16px 0; }
 dt { color: #888888; }

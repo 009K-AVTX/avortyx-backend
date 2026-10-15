@@ -1,0 +1,37 @@
+{% extends "panel/base.html" %}
+{% block title %}{{ r.name }} · Avortyx Panel{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('panel.access_requests') }}">← All access requests</a></p>
+<div class="card">
+  <div class="head">
+    <div>
+      <h1>{{ r.name }}</h1>
+      <p class="muted">{{ r.reference }} · {{ r.organization }} · received {{ r.created_at.strftime('%d %b %Y, %H:%M') }} UTC</p>
+    </div>
+    <a class="btn" href="mailto:{{ r.email }}?subject={{ ('Your Avortyx access request (' ~ r.reference ~ ')')|urlencode }}">Email {{ r.name.split()[0] if r.name.split() else r.name }}</a>
+  </div>
+  <dl>
+    <dt>Email</dt><dd><a href="mailto:{{ r.email }}">{{ r.email }}</a></dd>
+    {% if r.phone %}<dt>Phone</dt><dd>{{ r.phone }}</dd>{% endif %}
+    {% if r.page %}<dt>Sent from</dt><dd>{{ r.page }}</dd>{% endif %}
+  </dl>
+  <h2>What they want to route</h2>
+  <p class="note">{{ r.use_case }}</p>
+</div>
+
+<div class="row">
+  <form class="card" method="post" action="{{ url_for('panel.access_status', req_id=r.id) }}">
+    <h2>Status</h2>
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <select name="status">{% for s in ACCESS_STATUSES %}<option value="{{ s }}" {{ 'selected' if s == r.status }}>{{ s|capitalize }}</option>{% endfor %}</select>
+    <button class="btn">Save</button>
+  </form>
+  <form class="card" method="post" action="{{ url_for('panel.access_resend', req_id=r.id) }}">
+    <h2>Notifications</h2>
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <p>Telegram: {{ 'sent' if r.sent_telegram else 'not sent' }} · Email: {{ 'sent' if r.sent_email else 'not sent' }}{% if config.SEND_APPLICANT_CONFIRMATION %} · Requester confirmation: {{ 'sent' if r.sent_confirmation else 'not sent' }}{% endif %}</p>
+    {% set unsent = not (r.sent_telegram and r.sent_email and (r.sent_confirmation or not config.SEND_APPLICANT_CONFIRMATION)) %}
+    {% if unsent %}<button class="btn">Send again</button>{% endif %}
+  </form>
+</div>
+{% endblock %}

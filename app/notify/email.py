@@ -4,6 +4,8 @@
                       turned email alerts on, CV attached, Reply-To the applicant
   send_confirmation() "we received your application" to the applicant, with their reference
   send_reply()        a message from the team to the applicant (panel or Telegram)
+  send_access()       the team alert for an access request, Reply-To the requester
+  send_access_confirmation()  "we received your request" to the requester
   send_test()         Panel → Settings → Send test email
 
 Port 465 uses SSL; any other port (587) upgrades with STARTTLS.
@@ -44,8 +46,9 @@ def reply_to_address():
     return _cfg()["CAREERS_REPLY_TO"] or (team_inbox() or [""])[0]
 
 
-def deliver(to, subject, text, html, reply_to=None, attachments=()):
-    """Sends one email to the addresses in `to`. Raises EmailError if it can't."""
+def deliver(to, subject, text, html, reply_to=None, attachments=(), from_name=None):
+    """Sends one email to the addresses in `to`, from MAIL_FROM_NAME unless `from_name` is given.
+    Raises EmailError if it can't."""
     c = _cfg()
     if not configured():
         raise EmailError("SMTP_HOST, SMTP_USER or SMTP_PASS is not set")
@@ -55,7 +58,7 @@ def deliver(to, subject, text, html, reply_to=None, attachments=()):
     sender = c["SMTP_FROM"] or c["SMTP_USER"]
 
     msg = EmailMessage()
-    msg["From"] = formataddr((c["MAIL_FROM_NAME"], sender))
+    msg["From"] = formataddr((from_name or c["MAIL_FROM_NAME"], sender))
     msg["To"] = ", ".join(to)
     msg["Subject"] = subject
     msg["Message-ID"] = make_msgid(domain=sender.split("@")[-1] or None)
@@ -220,6 +223,62 @@ def send_reply(app, message):
     text = f"Hi {first},\n\n{message}\n\nAvortyx Hiring Team\n\n—\nAbout your application for {app.role} ({app.reference})."
     deliver([app.email], f"Your application for {app.role} at Avortyx ({app.reference})", text, html,
             reply_to=reply_to_address())
+
+
+ACCESS_FROM = "Avortyx"
+
+
+def _access_rows(req):
+    rows = [("Reference", req.reference), ("Name", req.name), ("Company", req.organization), ("Email", req.email)]
+    if req.phone:
+        rows.append(("Phone", req.phone))
+    if req.page:
+        rows.append(("Sent from", req.page))
+    return rows
+
+
+def send_access(req, _payload=None):
+    """The team alert for an access request (access channel "email")."""
+    rows = _access_rows(req)
+    how = f"Reply to this email to answer {req.name} directly."
+    body = (
+        _p(f"{req.name} from {req.organization} asked for access to Avortyx.")
+        + _table(rows)
+        + f'<p style="margin:0 0 6px;font-weight:600">What they want to route</p>{_p(req.use_case)}'
+        + f'<p style="margin:16px 0 0;color:{MUTED};font-size:13px">{escape(how)}</p>'
+    )
+    base = _cfg()["PUBLIC_URL"]
+    link = f"{base}/panel/access/{req.id}" if base else ""
+    html = layout(f"Access request · {req.reference}", body, preheader=f"{req.name} — {req.organization}",
+                  button=("Open in panel", link))
+    text = (
+        f"Access request {req.reference}\n\n"
+        + "\n".join(f"{k}: {v}" for k, v in rows)
+        + f"\n\nWhat they want to route:\n{req.use_case}"
+        + (f"\n\nOpen in panel: {link}" if link else "") + f"\n\n{how}"
+    )
+    deliver(team_recipients(), f"Access request: {req.organization} — {req.name} ({req.reference})", text, html,
+            reply_to=formataddr((req.name, req.email)), from_name=ACCESS_FROM)
+
+
+def send_access_confirmation(req, _payload=None):
+    """'We received your request' to the requester (access channel "confirmation")."""
+    first = req.name.split()[0] if req.name.split() else req.name
+    lines = [
+        f"Hi {first},",
+        "Thank you for requesting access to Avortyx. Your request reached our team.",
+        "Every request is reviewed by our team, and access is by invitation only. If your request is "
+        "approved, we will email you a secure link to set up your account. If you need to add "
+        "anything, just reply to this email and keep your reference in the subject.",
+    ]
+    body = "".join(_p(line) for line in lines) + _table(
+        [("Reference", req.reference), ("Company", req.organization)]
+    ) + _p("The Avortyx Team")
+    html = layout("We received your request", body, preheader=f"Reference {req.reference}",
+                  button=("Visit avortyx.com", _cfg()["SITE_URL"]))
+    text = "\n\n".join(lines) + f"\n\nReference: {req.reference}\nCompany: {req.organization}\n\nThe Avortyx Team"
+    deliver([req.email], f"We received your access request ({req.reference})", text, html,
+            reply_to=reply_to_address(), from_name=ACCESS_FROM)
 
 
 def send_test(to):

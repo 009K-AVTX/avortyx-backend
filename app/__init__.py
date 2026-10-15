@@ -1,7 +1,9 @@
-"""Builds the Flask app: config, extensions and the three parts of the backend.
+"""Builds the Flask app: config, extensions and the parts of the backend.
 
 - careers:  the public endpoint the website's application form posts to
-- panel:    the admin panel where the team reviews applications and sets up Telegram / email
+- access:   the public endpoint the website's request-access form posts to
+- panel:    the admin panel where the team reviews applications and access requests, and sets up
+            Telegram / email
 - telegram: the bot's webhook (/start linking, /help, replying to applicants from Telegram)
 """
 from flask import Flask
@@ -23,14 +25,17 @@ def create_app(config=Config):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     db.init_app(app)
-    # only the public careers endpoint is open to the website; the panel is same-origin and the
-    # webhook is called by Telegram's servers, not a browser
-    cors.init_app(app, resources={r"/careers/*": {"origins": app.config["CORS_ORIGINS"]}})
+    # only the public careers and access endpoints are open to the website; the panel is
+    # same-origin and the webhook is called by Telegram's servers, not a browser
+    public = {"origins": app.config["CORS_ORIGINS"]}
+    cors.init_app(app, resources={r"/careers/*": public, r"/access/*": public})
 
+    from .access import bp as access_bp
     from .bot import bp as bot_bp
     from .careers import bp as careers_bp
     from .panel import bp as panel_bp
     app.register_blueprint(careers_bp, url_prefix="/careers")
+    app.register_blueprint(access_bp, url_prefix="/access")
     app.register_blueprint(panel_bp, url_prefix="/panel")
     app.register_blueprint(bot_bp, url_prefix="/telegram")
 
