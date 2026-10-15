@@ -24,7 +24,7 @@ class Config:
     # webhook and for "Open in panel" links in alerts and emails.
     PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
     # The website, linked from the emails applicants receive.
-    SITE_URL = os.getenv("SITE_URL", "https://avortyx.com").rstrip("/")
+    SITE_URL = os.getenv("SITE_URL", "https://www.avortyx.com").rstrip("/")
 
     # ── Telegram bot ────────────────────────────────────────────────────────
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -44,7 +44,7 @@ class Config:
     SMTP_FROM = os.getenv("SMTP_FROM", "")
     MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Avortyx Careers")
     # who receives every application by email (comma-separated)
-    CAREERS_EMAIL_TO = os.getenv("CAREERS_EMAIL_TO", "hello@avortyx.io")
+    CAREERS_EMAIL_TO = os.getenv("CAREERS_EMAIL_TO", "009k@avortyx.com")
     # where an applicant's "reply" goes; defaults to the first CAREERS_EMAIL_TO address
     CAREERS_REPLY_TO = os.getenv("CAREERS_REPLY_TO", "")
     # email the applicant a "we received your application" note

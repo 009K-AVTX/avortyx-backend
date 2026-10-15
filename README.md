@@ -1,6 +1,6 @@
 # Avortyx Backend
 
-The Flask backend for the Avortyx website ([avortyx-frontend](https://github.com/kvn-koech/avortyx-frontend), checked out next to this folder as `../Avortyx-Frontend`). For now it handles one job:
+The Flask backend for the Avortyx website ([avortyx-frontend](https://github.com/009K-AVTX/avortyx-frontend), checked out next to this folder as `../Avortyx-Frontend`). For now it handles one job:
 **careers applications**. The careers page form posts each application here. It is saved, the CV
 goes to the hiring team on **Telegram and by email**, the applicant gets a confirmation email, and
 the team reviews it in an admin **panel**.
@@ -37,13 +37,30 @@ Avortyx-Backend/
 └── uploads/                 the CVs (dev)
 ```
 
+## What's live
+
+| | |
+|-|-|
+| Website | https://www.avortyx.com (Vercel project `trackdrive.net-clone`; `avortyx.com` redirects to www) |
+| Backend | https://api.avortyx.com on the Hostinger VPS (see [Deploying](#deploying-to-the-hostinger-vps)) |
+| Panel | https://api.avortyx.com/panel |
+| Bot | [@AvortyxCareersBot](https://t.me/AvortyxCareersBot), webhook `https://api.avortyx.com/telegram/webhook` |
+| Email | sent from `009k@avortyx.com` through `smtp.hostinger.com:465`; team alerts to `CAREERS_EMAIL_TO` |
+| Form → backend | Vercel Production env `VITE_APPLY_URL=https://api.avortyx.com/careers/apply` |
+| DNS | Hostinger: `api` A → the VPS; `@` and `www` → Vercel; MX, SPF and DKIM are Hostinger mail |
+| CVs and database | on the VPS in `/var/lib/avortyx` (`uploads/` and `avortyx.db`), not backed up by a deploy |
+
+The secrets (bot token, mailbox password, `SECRET_KEY`, `TELEGRAM_WEBHOOK_SECRET`) live only in
+`/srv/avortyx-backend/.env` on the server and in your local `.env`, both outside git. This repo is
+public: never put them in `.env.example` or anywhere else that is committed.
+
 ## Run it locally
 
 ```bash
 cd Avortyx-Backend
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env              # then fill in the Telegram and SMTP settings
+cp .env.example .env              # then fill in SECRET_KEY, TELEGRAM_BOT_TOKEN and SMTP_PASS
 flask --app wsgi create-admin you@avortyx.com
 flask --app wsgi run --debug --port 5055
 ```
@@ -51,6 +68,10 @@ flask --app wsgi run --debug --port 5055
 - Health check: http://localhost:5055/health
 - Panel: http://localhost:5055/panel
 - Tests: `python -m pytest -q`
+
+A local copy uses the same bot as the live server, so keep `PUBLIC_URL` empty in your local `.env`
+(then it can't take the webhook), and don't run `telegram-delete-webhook` or `telegram-chat-id`
+locally: they act on the live bot and stop its alerts until the server runs `telegram-set-webhook`.
 
 ## Connect the website
 
