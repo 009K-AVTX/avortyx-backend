@@ -98,6 +98,7 @@ def post_message():
 
     msg = ChatMessage(conversation=conv, sender="visitor", text=text)
     conv.last_at = now
+    conv.visitor_ip = (request.remote_addr or "")[:45] or None  # the latest, if it changes mid-chat
     db.session.add(msg)
     db.session.commit()
 
@@ -125,15 +126,30 @@ def visitor_name(conv):
     return "Visitor " + "".join(chr(65 + b % 26) for b in digest[:6])
 
 
+def _repeat_note(conv):
+    """" · 3rd chat from this address today" when the same address has started others lately."""
+    if not conv.ip:
+        return ""
+    n = ChatConversation.query.filter(ChatConversation.ip == conv.ip, ChatConversation.id <= conv.id,
+                                      ChatConversation.created_at > conv.created_at - timedelta(hours=24)).count()
+    if n < 2:
+        return ""
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f" · {n}{suffix} chat from this address today"
+
+
 def forward_text(conv, msg, first):
     """A visitor's message as Telegram HTML, in the style of the call platform's support bot: the
     whole picture the first time, the message and how to answer after that."""
     how = ["─────────────────", "📨 To reply, send:", f"<code>{conv.reference} your reply here</code>",
            "or reply to this message."]
+    ip = f" · IP <code>{escape(conv.visitor_ip)}</code>" if conv.visitor_ip else ""
     if not first:
-        return "\n".join([f"💬 <b>{visitor_name(conv)}</b> · {conv.reference}",
+        return "\n".join([f"💬 <b>{visitor_name(conv)}</b> · {conv.reference}{ip}",
                           f"<b>Message:</b> {escape(msg.text)}"] + how)
     lines = [f"💬 <b>New Support Chat</b> · {conv.reference}", f"👤 {visitor_name(conv)}"]
+    if conv.visitor_ip:
+        lines.append(f"🌍 IP: <code>{escape(conv.visitor_ip)}</code>{_repeat_note(conv)}")
     if conv.agent:
         lines.append(f"🧑‍💼 Asked for: {escape(AGENTS[conv.agent])}" + (f" ({conv.intent})" if conv.intent else ""))
     if conv.page:

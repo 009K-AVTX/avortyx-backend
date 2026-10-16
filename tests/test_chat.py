@@ -29,13 +29,15 @@ def test_chat_goes_to_the_support_group_and_answers_come_back(client, tg, app):
     assert "New Support Chat</b> · CHAT-00001" in first["text"] and "Asked for: Jordan Kim · Solutions engineer (support)" in first["text"]
     assert "<b>Message:</b> Hi, how do I port my &lt;numbers&gt;?" in first["text"] and "Page: https://www.avortyx.com/pricing" in first["text"]
     assert "\U0001F464 Visitor " in first["text"] and "<code>CHAT-00001 your reply here</code>" in first["text"]
+    assert "\U0001F30D IP: <code>127.0.0.1</code>\n" in first["text"]  # no repeat note on a first chat
     assert not tg.sent("sendMessage", "-100777")
 
     # a second message is short
     client.post("/chat/messages", json={"conversation": cid, "token": token, "text": "We do 2k calls a day"})
     second = tg.sent("sendMessage", SUPPORT)[1]
     visitor = first["text"].split("\U0001F464 ")[1].split("\n")[0]
-    assert second["text"].startswith(f"\U0001F4AC <b>{visitor}</b> · CHAT-00001\n<b>Message:</b> We do 2k calls a day\n")
+    assert second["text"].startswith(f"\U0001F4AC <b>{visitor}</b> · CHAT-00001 · IP <code>127.0.0.1</code>\n"
+                                     "<b>Message:</b> We do 2k calls a day\n")
 
     # a teammate replies to the first forwarded message in the group
     fwd_id = ChatMessage.query.filter_by(sender="visitor").first().tg_message_id
@@ -214,3 +216,15 @@ def test_chat_resend_command(client, tg, app):
     tg.fail_chats.clear()
     assert "Resent 2 of 2 chat(s)." in runner.invoke(args=["chat-resend"]).output
     assert "Nothing to resend" in runner.invoke(args=["chat-resend"]).output
+
+
+def test_the_team_sees_the_visitors_address_and_repeat_chats(client, tg, app):
+    app.config.update(TELEGRAM_SUPPORT_CHAT_ID=SUPPORT)
+    client.post("/chat/messages", json={"text": "buy cheap followers"}, environ_base={"REMOTE_ADDR": "203.0.113.7"})
+    client.post("/chat/messages", json={"text": "buy cheap followers"}, environ_base={"REMOTE_ADDR": "203.0.113.7"})
+    client.post("/chat/messages", json={"text": "hello"}, environ_base={"REMOTE_ADDR": "198.51.100.2"})
+    texts = [m["text"] for m in tg.sent("sendMessage", SUPPORT)]
+    assert "IP: <code>203.0.113.7</code>\n" in texts[0]
+    assert "IP: <code>203.0.113.7</code> · 2nd chat from this address today\n" in texts[1]
+    assert "IP: <code>198.51.100.2</code>\n" in texts[2]
+    assert db.session.get(ChatConversation, 1).visitor_ip == "203.0.113.7"
